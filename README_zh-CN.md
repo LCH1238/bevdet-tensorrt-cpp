@@ -44,10 +44,10 @@
 |Model   |Description       |mAP   |NDS    |Infer time|
 |---     |---               |---   |---    |---       |
 |Pytorch |                  |0.3972|0.5074|96.052|
-|Pytorch |LSS accelerate^1^   |0.3787|0.4941|86.236|
-|Trt FP32|Python Preprocess$^2$|0.3776|0.4936|25.534|
-|Trt FP32|Bicubic sampler$^3$  |0.3723|0.3895|33.960|
-|Trt FP32|Nearest sampler$^4$  |0.3703|0.4884|25.534|
+|Pytorch |LSS accelerate<sup>1</sup>   |0.3787|0.4941|86.236|
+|Trt FP32|Python Preprocess<sup>2</sup>|0.3776|0.4936|25.534|
+|Trt FP32|Bicubic sampler<sup>3</sup>  |0.3723|0.3895|33.960|
+|Trt FP32|Nearest sampler<sup>4</sup>  |0.3703|0.4884|25.534|
 |Trt FP16|Nearest sampler   |0.3702|0.4883|13.817|
 
 *注：Pytorch模型不包括预处理时间，上述模型均在NVIDIA A4000上面测试*
