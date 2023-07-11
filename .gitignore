@@ -16,5 +16,5 @@ __pycache__
 /demo
 /model/*
 
-/cfgs/bevdet-oh.yaml
-/cfgs/bevdet.yaml
+cfgs/bevdet-oh.yaml
+cfgs/bevdet.yaml
