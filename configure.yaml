@@ -1,0 +1,30 @@
+TestNuscenes: true # true or false
+
+ModelConfig: ../cfgs/bevdet_lt_depth.yaml
+
+N: 6
+H: 900
+W: 1600
+cams: [CAM_FRONT_LEFT, CAM_FRONT, CAM_FRONT_RIGHT, CAM_BACK_LEFT, CAM_BACK, CAM_BACK_RIGHT]
+sample:
+    CAM_FRONT_LEFT: ../sample0/imgs/CAM_FRONT_LEFT.jpg
+    CAM_FRONT: ../sample0/imgs/CAM_FRONT.jpg
+    CAM_FRONT_RIGHT: ../sample0/imgs/CAM_FRONT_RIGHT.jpg
+    CAM_BACK_LEFT: ../sample0/imgs/CAM_BACK_LEFT.jpg
+    CAM_BACK: ../sample0/imgs/CAM_BACK.jpg
+    CAM_BACK_RIGHT: ../sample0/imgs/CAM_BACK_RIGHT.jpg
+
+CamConfig: ../sample0/sample0000.yaml
+OutputLidarBox: ../sample0/sample0_lidarbox.txt
+
+ImgStageEngine: ../model/img_stage_lt_d_trt852_fp16.engine
+BEVStageEngine: ../model/bev_stage_lt_d_trt852_fp16.engine
+
+InputFile: ../data/sample0.bin
+
+OutputDir: ../output/
+
+LoadDim: 5
+UseDim: 4
+
+dataset_info: ../data/nuscenes/data_infos

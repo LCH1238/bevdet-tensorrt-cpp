@@ -1,0 +1,17 @@
+.vscode/
+Makefile
+build/
+__pycache__
+*.engine
+/DEBUG_FILES
+
+/data/nuscenes
+/DEBUG 
+/output/*
+/results
+/data/*
+/test_cpp
+
+/imgs_data
+/demo
+/model/*
