@@ -15,3 +15,6 @@ __pycache__
 /imgs_data
 /demo
 /model/*
+
+/cfgs/bevdet-oh.yaml
+/cfgs/bevdet.yaml
