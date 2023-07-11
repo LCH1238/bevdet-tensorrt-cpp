@@ -1,4 +1,4 @@
-TestNuscenes: true # true or false
+TestNuscenes: false # true or false
 
 ModelConfig: ../cfgs/bevdet_lt_depth.yaml
 

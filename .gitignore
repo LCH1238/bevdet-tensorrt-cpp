@@ -7,14 +7,14 @@ __pycache__
 
 /data/nuscenes
 /DEBUG 
-/output/*
+/output
 /results
 /data/*
 /test_cpp
 
 /imgs_data
 /demo
-/model/*
+/model
 
-cfgs/bevdet-oh.yaml
-cfgs/bevdet.yaml
+/cfgs/bevdet-oh.yaml
+/cfgs/bevdet.yaml
