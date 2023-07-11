@@ -81,7 +81,7 @@ def dataloader(cloud_path , boxes_path, load_dim):
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--score_thr", type=float, default=0.2)
-parser.add_argument("--config", type=str, default="configure.yaml")
+parser.add_argument("--config", type=str, default="../configure.yaml")
 
 args = parser.parse_args()
 
