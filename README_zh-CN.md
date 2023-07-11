@@ -31,7 +31,7 @@
 ## Results && Speed
 ## Inference Speed
  所有的时间单位都是毫秒(ms), 默认使用Nearest插值
-||Preprocess|Image stage|BEV pool|Aligen Feature|BEV stage|Postprocess|mean Total | 
+||Preprocess|Image stage|BEV pool|Align Feature|BEV stage|Postprocess|mean Total | 
 |---|---|---|---|---|---|---|---|
 |NVIDIA A4000 FP32|0.478|16.559|0.151|0.899|6.848 |0.558|25.534|
 |NVIDIA A4000 FP16|0.512|8.627 |0.168|0.925|2.966 |0.619|13.817|

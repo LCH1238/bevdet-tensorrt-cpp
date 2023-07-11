@@ -32,7 +32,7 @@ The following parts need to be implemented:
 ## Inference Speed
 All time units are in milliseconds (ms), and Nearest interpolation is used by default.
 
-||Preprocess|Image stage|BEV pool|Aligen Feature|BEV stage|Postprocess|mean Total | 
+||Preprocess|Image stage|BEV pool|Align Feature|BEV stage|Postprocess|mean Total | 
 |---|---|---|---|---|---|---|---|
 |NVIDIA A4000 FP32|0.478|16.559|0.151|0.899|6.848 |0.558|25.534|
 |NVIDIA A4000 FP16|0.512|8.627 |0.168|0.925|2.966 |0.619|13.817|
