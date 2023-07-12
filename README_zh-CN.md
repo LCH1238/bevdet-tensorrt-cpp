@@ -8,7 +8,7 @@
 
 本项目是BEVDet的TensorRT推理实现，使用C++编程。可以在nuScenes数据集上测试，也提供了单个测试样本。BEVDet是一个基于BEV的多相机3D目标检测模型，有关BEVDet的详细说明，可以参考 [BEVDet](https://github.com/HuangJunJie2017/BEVDet)。
 
-![图](BEVDet-TensorRT.svg)
+![图](BEVDet-TensorRT.png)
 
 本项目实现了:
 - 长时序（long-term）模型的推理
