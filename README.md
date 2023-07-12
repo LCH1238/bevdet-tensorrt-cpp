@@ -8,6 +8,9 @@ English | [简体中文](README_zh-CN.md)
 
 This project is a TensorRT implementation for BEVDet inference, written in C++. It can be tested on the nuScenes dataset and also provides a single test sample. BEVDet is a multi-camera 3D object detection model in bird's-eye view. For more details about BEVDet, please refer to the following link [BEVDet](https://github.com/HuangJunJie2017/BEVDet)。
 
+![图](BEVDet-TensorRT.svg)
+
+
 This project implements the following:
 - Long-term model
 - Depth model
