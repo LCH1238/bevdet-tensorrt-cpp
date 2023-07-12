@@ -20,7 +20,7 @@ This project implements the following:
 
 The features of this project are as follows:
 - A CUDA Kernel that combines Resize, Crop, and Normalization for preprocessing
-- The Preprocess CUDA kernnel includes two interpolation methods: Nearest Neighbor Interpolation and Bicubic Interpolation
+- The Preprocess CUDA kernel includes two interpolation methods: Nearest Neighbor Interpolation and Bicubic Interpolation
 - Alignment of adjacent frame BEV features using C++ and CUDA kernel implementation
 - Multi-threading and multi-stream NvJPEG
 - Sacle-NMS
