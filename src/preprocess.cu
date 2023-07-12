@@ -45,7 +45,7 @@ __device__ double Weight(double x, double a = -0.5){
     }
     return 0.0;
 }
-
+// old version, slow speed
 // resize, crop, norm
 // sample : Bicubic
 
