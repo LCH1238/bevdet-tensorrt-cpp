@@ -14,22 +14,26 @@ This project is a TensorRT implementation for BEVDet inference, written in C++. 
 This project implements the following:
 - Long-term model
 - Depth model
-- On the NVIDIA A4000, the BEVDet-r50-lt-depth model shows a 2.38x faster inference speed for TRT FP32 compared to PyTorch FP32, and a 5.21x faster inference speed for TRT FP16 compared to PyTorch FP32
-- On the Jetson AGX Orin, the FP16 model inference time is around 29 ms, achieving real-time performance
+- On the NVIDIA A4000, the BEVDet-r50-lt-depth model shows a __2.38x faster__ inference speed for TRT FP32 compared to PyTorch FP32, and a __5.21x faster__ inference speed for TRT FP16 compared to PyTorch FP32
+- On the __Jetson AGX Orin__, the FP16 model inference time is around __29 ms__, achieving real-time performance
 - A Dataloader for the nuScenes dataset and can be used to test on the dataset
 
 The features of this project are as follows:
 - A CUDA Kernel that combines Resize, Crop, and Normalization for preprocessing
-- The Preprocess CUDA kernel includes two interpolation methods: Nearest Neighbor Interpolation and Bicubic Interpolation
+- The __Preprocess CUDA kernel__ includes two interpolation methods: Nearest Neighbor Interpolation and Bicubic Interpolation
 - Alignment of adjacent frame BEV features using C++ and CUDA kernel implementation
-- Multi-threading and multi-stream NvJPEG
+- __Multi-threading and multi-stream NvJPEG__
 - Sacle-NMS
+- Remove the preprocess module in BEV encoder
+
   
 The following parts need to be implemented:
 - Quantization to int8.
 - Integrate the bevpool and adjacent frame BEV feature alignment components into the engine as plugins
 - Fine-tune the model to address the issue of model sensitivity to input resize sampling, resulting in decreased mAP and NDS metrics
 - Exception handling
+- Clean up and open source the code that export onnx and yaml file
+
 
 ## Results && Speed
 ## Inference Speed

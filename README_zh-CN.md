@@ -13,22 +13,24 @@
 本项目实现了:
 - 长时序（long-term）模型的推理
 - Depth模型的推理
-- 在NVIDIA A4000上，BEVDet-r50-lt-depth模型中，TRT FP32模型推理速度比PyTorch FP32模型快2.38倍, TRT FP16模型比PyTorch FP32模型快5.21倍
-- 在Jetson AGX Orin上进行推理，FP16模型推理时间在29ms左右，实现了实时化
+- 在NVIDIA A4000上，BEVDet-r50-lt-depth模型中，TRT FP32模型推理速度比PyTorch FP32模型**快2.38倍**, TRT FP16模型比PyTorch FP32模型**快5.21倍**
+- 在**Jetson AGX Orin**上进行推理，FP16模型推理时间在**29m**s左右，实现了实时化
 - 实现了Dataloader，可以在nuScenes数据集上进行测试
 
 本项目的特点：
-- 集Resize、Crop与Normalization于一体的预处理CUDA Kernel
+- 集Resize、Crop与Normalization于一体的**预处理CUDA Kernel**
 - Preprocess的CUDA kernnel部分，实现了Nearest插值和Bicubic插值
 - C++与CUDA kernel实现的过往帧BEV特征对齐
-- 多线程+多数据流NvJPEG
+- **多线程+多数据流NvJPEG**
 - Scale-NMS
+- 移除了BEV encoder部分的preprocess网络
 
 接下来要实现的：
 - int8量化
 - 将bevpool与过往帧BEV特征对齐部分做成插件，整合到engine中
 - 微调模型，解决模型对输入resize采样敏感导致mAP与NDS下降的问题
 - 异常处理
+- 整理并开源导出onnx与yaml部分的代码
 
 ## Results && Speed
 ## Inference Speed
