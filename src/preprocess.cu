@@ -199,7 +199,7 @@ int preprocess(const uchar* src_imgs, float* dst_imgs, int n_img, int src_img_h,
     dim3 grid(dst_img_h, dst_img_w);
     dim3 block;
     if(sample == Sampler::bicubic){
-        printf("sampler : bicubic\n");
+        // printf("sampler : bicubic\n");
         block = dim3(n_img, 16);
         fill_in_kernel<<<dim3(dst_img_h, dst_img_w), dim3(n_img * 3)>>>(dst_imgs, 0.0f);
 
@@ -210,7 +210,7 @@ int preprocess(const uchar* src_imgs, float* dst_imgs, int n_img, int src_img_h,
                                                                 offset_w, mean, std);
     }
     else if(sample == Sampler::nearest){
-        printf("sampler : nearest\n");
+        // printf("sampler : nearest\n");
         block = dim3(n_img);
         preprocess_nearest_kernel<<<grid, block>>>(src_imgs, dst_imgs, src_row_step, dst_row_step, 
                         src_img_step, dst_img_step, src_img_h, src_img_w, resize_radio_h,
