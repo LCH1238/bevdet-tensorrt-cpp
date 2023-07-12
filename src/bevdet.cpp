@@ -461,9 +461,6 @@ void BEVDet::GetAdjFrameFeature(const std::string &curr_scene_token,
         reset = true;
     }
 
-    /*
-    A4000 此处使用单线程串行大约延时 0.9~1ms, 但是用多线程并行需要1.7ms左右, 故不使用多线程
-    */
     for(int i = 0; i < adj_num; i++){
         const float* adj_buffer = adj_frame_ptr->getFrameBuffer(i);
 
