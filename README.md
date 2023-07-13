@@ -43,8 +43,9 @@ All time units are in milliseconds (ms), and Nearest interpolation is used by de
 |---|---|---|---|---|---|---|---|
 |NVIDIA A4000 FP32|0.478|16.559|0.151|0.899|6.848 |0.558|25.534|
 |NVIDIA A4000 FP16|0.512|8.627 |0.168|0.925|2.966 |0.619|13.817|
-|Jetson AGX Orin FP16|2.816|17.025|0.571|2.111|5.747 |0.919|29.189|
 |Jetson AGX Orin FP32|2.800|38.09|0.620|2.018|11.893|1.065|55.104|
+|Jetson AGX Orin FP16|2.816|17.025|0.571|2.111|5.747 |0.919|29.189|
+
 
 *Note: The inference time of the module refers to the time of a frame, while the total time is calculated as the average time of 200 frames.*
 
