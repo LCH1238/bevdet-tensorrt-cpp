@@ -18,8 +18,8 @@ CamConfig: ../sample0/sample0000.yaml
 InputFile: ../sample0/0.bin
 OutputLidarBox: ../sample0/sample0_lidarbox.txt
 
-ImgStageEngine: ../model/img_stage_lt_d_trt852_fp16.engine
-BEVStageEngine: ../model/bev_stage_lt_d_trt852_fp16.engine
+ImgStageEngine: ../model/img_stage_lt_d_fp16.engine
+BEVStageEngine: ../model/bev_stage_lt_d_fp16.engine
 
 
 OutputDir: ../output/
