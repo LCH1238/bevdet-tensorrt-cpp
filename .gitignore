@@ -18,3 +18,5 @@ __pycache__
 
 /cfgs/bevdet-oh.yaml
 /cfgs/bevdet.yaml
+/quan
+/trt_quan

@@ -17,6 +17,7 @@ This project implements the following:
 - On the NVIDIA A4000, the BEVDet-r50-lt-depth model shows a __2.38x faster__ inference speed for TRT FP32 compared to PyTorch FP32, and a __5.21x faster__ inference speed for TRT FP16 compared to PyTorch FP32
 - On the __Jetson AGX Orin__, the FP16 model inference time is around __29 ms__, achieving real-time performance
 - A Dataloader for the nuScenes dataset and can be used to test on the dataset
+- Fine-tuned the model to solve the problem that the model is sensitive to input resize sampling, which leads to the decline of mAP and NDS
 
 The features of this project are as follows:
 - A CUDA Kernel that combines Resize, Crop, and Normalization for preprocessing
@@ -30,7 +31,6 @@ The features of this project are as follows:
 The following parts need to be implemented:
 - Quantization to int8.
 - Integrate the bevpool and adjacent frame BEV feature alignment components into the engine as plugins
-- Fine-tune the model to address the issue of model sensitivity to input resize sampling, resulting in decreased mAP and NDS metrics
 - Exception handling
 - Clean up and open source the code that export onnx and yaml file
 
@@ -58,12 +58,16 @@ All time units are in milliseconds (ms), and Nearest interpolation is used by de
 |Trt FP32|Bicubic sampler<sup>3</sup>  |0.3723|0.3895|33.960|
 |Trt FP32|Nearest sampler<sup>4</sup>  |0.3703|0.4884|25.534|
 |Trt FP16|Nearest sampler   |0.3702|0.4883|13.817|
+|Pytorch |Nearest sampler <sup>5</sup>   |0.3989|0.5169|——|
+|Pytorch |LSS accelerate <sup>5</sup>  |0.3800| 0.4997|——|
+|Trt FP16| <sup>5</sup>|0.3785| 0.5013  | 12.738
 
 *Note: The PyTorch model does not include preprocessing time, and all models were tested on an NVIDIA A4000 GPU*
 1. LSS accelerate refers to the process of pre-computing and storing the data used for BEVPool mapping during the View Transformer stage to improve inference speed. The pre-stored data is calculated based on the camera's intrinsic and extrinsic parameters. Due to slight differences in the intrinsic and extrinsic parameters of certain scenes in nuScenes, enabling the LSS accelerate can result in a decrease in precision. However, if the camera's intrinsic parameters remain unchanged and the extrinsic parameters between the camera coordinate system and the Ego coordinate system also remain unchanged, using LSS Accelerate will not result in a decrease in precision.
 2. Some networks are very sensitive to input, and the Pytorch models use PIL's resize function with default Bicubic interpolation for preprocessing. During inference, neither OpenCV's Bicubic interpolation nor our own implementation of Bicubic interpolation can achieve the accuracy of Pytorch. We speculate that the network may be slightly overfitting or learning certain features of the sampler, which leads to a decrease in accuracy when the interpolation method is changed. Here, using Python preprocessing as input, it can be seen that the accuracy of the TRT model does not decrease in some cases
 3. If as stated in point 2, we use our own implementation of Bicubic interpolation, it cannot achieve the performance of Python preprocessing.
 4. Nearest is 20 times slower than Bicubic and will be used as the default sampling method.
+5. Fine-tune the network, and the preprocess uses the resize based on Nearest sampling implemented in C++. After fine-tuning, the network is adapted to Nearest sampling
 
 ## DataSet
 The Project provides a test sample that can also be used for inference on the nuScenes dataset. When testing on the nuScenes dataset, you need to use the data_infos folder provided by this project. The data folder should have the following structure:

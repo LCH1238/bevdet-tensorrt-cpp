@@ -3,6 +3,7 @@
 
 #include <string>
 #include <vector>
+#include <map>
 #include <yaml-cpp/yaml.h>
 
 #include <Eigen/Core>
@@ -218,6 +219,8 @@ private:
     void** imgstage_buffer;
     void** bevstage_buffer;
 
+    std::map<std::string, int> imgbuffer_map;
+    std::map<std::string, int> bevbuffer_map;
 
     int valid_feat_num;
     int unique_bev_num;
