@@ -17,6 +17,7 @@
 - 在**Jetson AGX Orin**上进行推理，FP16模型推理时间在**29m**s左右，实现了实时化
 - 实现了Dataloader，可以在nuScenes数据集上进行测试
 - 微调了模型，解决了模型对输入resize采样敏感导致mAP与NDS下降的问题
+- Int8的量化的尝试
 
 本项目的特点：
 - 集Resize、Crop与Normalization于一体的**预处理CUDA Kernel**

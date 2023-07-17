@@ -18,6 +18,7 @@ This project implements the following:
 - On the __Jetson AGX Orin__, the FP16 model inference time is around __29 ms__, achieving real-time performance
 - A Dataloader for the nuScenes dataset and can be used to test on the dataset
 - Fine-tuned the model to solve the problem that the model is sensitive to input resize sampling, which leads to the decline of mAP and NDS
+- An Attempt at Int8 Quantization
 
 The features of this project are as follows:
 - A CUDA Kernel that combines Resize, Crop, and Normalization for preprocessing
