@@ -6,7 +6,7 @@ English | [简体中文](doc/README_zh-CN.md)
 
 </div>
 
-This project is a TensorRT implementation for BEVDet inference, written in C++. It can be tested on the nuScenes dataset and also provides a single test sample. BEVDet is a multi-camera 3D object detection model in bird's-eye view. For more details about BEVDet, please refer to the following link [BEVDet](https://github.com/HuangJunJie2017/BEVDet).
+This project is a TensorRT implementation for BEVDet inference, written in C++. It can be tested on the nuScenes dataset and also provides a single test sample. BEVDet is a multi-camera 3D object detection model in bird's-eye view. For more details about BEVDet, please refer to the following link [BEVDet](https://github.com/HuangJunJie2017/BEVDet). **The script to export the ONNX model is in this [repository](https://github.com/LCH1238/BEVDet)**.
 
 ![图](doc/BEVDet-TensorRT.png)
 
@@ -33,7 +33,6 @@ The following parts need to be implemented:
 - Quantization to int8.
 - Integrate the bevpool and adjacent frame BEV feature alignment components into the engine as plugins
 - Exception handling
-- Clean up and open source the code that export onnx and yaml file
 
 
 ## Results && Speed

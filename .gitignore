@@ -20,3 +20,4 @@ __pycache__
 /cfgs/bevdet.yaml
 /quan
 /trt_quan
+*.onnx
