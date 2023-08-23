@@ -27,4 +27,7 @@ inline void GPUAssert(cudaError_t code, const char *file, int line, bool abort =
 #define DIVUP(m, n) ((m) / (n) + ((m) % (n) > 0))
 
 
+#define CEIL_DIVIDE(X, Y) (((X) + (Y)-1) / (Y))
+#define ALIGN_TO(X, Y)    (CEIL_DIVIDE(X, Y) * (Y))
+
 #endif

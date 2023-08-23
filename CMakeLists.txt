@@ -14,7 +14,7 @@
 # limitations under the License.
 
 cmake_minimum_required(VERSION 3.1.0)
-project(demo)
+project(demo LANGUAGES CXX CUDA)
 
 find_package(CUDA REQUIRED)
 find_package(yaml-cpp REQUIRED)
@@ -39,18 +39,21 @@ set(CMAKE_BUILD_TYPE "RELEASE")
 set(CMAKE_CXX_FLAGS_RELEASE "-Wno-deprecated-declarations -O2")
 
 add_compile_options(-W)
-add_compile_options(-std=c++14)
+add_compile_options(-std=c++11)
 
-set( SMS 30 32 35 37 50 52 53 60 61 62 70 72 75 86 87)
-foreach(sm ${SMS})
-	set(GENCODE ${GENCODE} -gencode arch=compute_${sm},code=sm_${sm})
-endforeach()
-set(HIGHEST_SM 87)
-set(GENCODE ${GENCODE} -gencode arch=compute_${HIGHEST_SM},code=compute_${HIGHEST_SM})
+# set( SMS 30 32 35 37 50 52 53 60 61 62 70 72 75 86 87)
+# foreach(sm ${SMS})
+	# set(GENCODE ${GENCODE} -gencode arch=compute_${sm},code=sm_${sm})
+# endforeach()
+# set(HIGHEST_SM 87)
+# set(GENCODE ${GENCODE} -gencode arch=compute_${HIGHEST_SM},code=compute_${HIGHEST_SM})
 
-set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS}
-  -ccbin ${CMAKE_CXX_COMPILER}
-)
+# set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS}
+#   -ccbin ${CMAKE_CXX_COMPILER}"
+# )
+set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -std=c++11 -O0 -Xcompiler -fPIC -g -w -gencode=arch=compute_86,code=sm_86")
+
+
 
 if(${CMAKE_BUILD_TYPE} STREQUAL "DEBUG")
   message("Using Debug Mode")
@@ -106,3 +109,15 @@ target_link_libraries(bevdemo
     libnvinfer.so
     libjpeg.so
 )
+
+
+cuda_add_library(preprocess_plugin SHARED src/preprocess_plugin.cu)
+cuda_add_library(bevpool_plugin SHARED src/bevpool_plugin.cu)
+cuda_add_library(alignbev SHARED src/alignbev_plugin.cu)
+
+
+
+# cuda_add_library(test_plugin SHARED src/test_plugin.cu)
+
+# target_link_libraries(test_plugin nvinfer nvinfer_plugin)
+# target_link_libraries(test_plugin cuda cublas cudart cudnn)

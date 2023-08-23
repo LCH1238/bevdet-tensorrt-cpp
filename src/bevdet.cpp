@@ -35,6 +35,7 @@ BEVDet::BEVDet(const std::string &config_file, int n_img,
 
     InitEngine(imgstage_file, bevstage_file); // FIXME
     MallocDeviceMemory();
+    adj_cnt = 0;
 }
 
 void BEVDet::InitDepth(const std::vector<Eigen::Quaternion<float>> &curr_cams2ego_rot,
@@ -347,6 +348,9 @@ void BEVDet::InitViewTransformer(){
     // printf("unique_bev_num : %d\n", unique_bev_num);
     // printf("valid rate : %.3lf\n", (float)valid_feat_num / num_points);
 
+    printf("valid_feat_num: %d \n", valid_feat_num);
+    printf("unique_bev_num: %d \n", unique_bev_num);
+
     delete[] ranks_bev_host;
     delete[] ranks_depth_host;
     delete[] ranks_feat_host;
@@ -541,7 +545,6 @@ void BEVDet::AlignBEVFeature(const Eigen::Quaternion<float> &curr_ego2global_rot
 
     Eigen::Matrix3f currgrid2adjgrid = gridbev2egobev.inverse() * currEgo2adjEgo_2d * gridbev2egobev;
 
-
     float* grid_dev;
     float* transform_dev;
     CHECK_CUDA(cudaMalloc((void**)&grid_dev, bev_h * bev_w * 2 * sizeof(float)));
@@ -559,10 +562,31 @@ void BEVDet::AlignBEVFeature(const Eigen::Quaternion<float> &curr_ego2global_rot
     int grid_dim[4] = {1, bev_w, bev_h, 2};
     
 
-    grid_sample(output_bev, input_bev, grid_dev, output_dim, input_dim, grid_dim, 4,
-                GridSamplerInterpolation::Bilinear, GridSamplerPadding::Zeros, true, stream);
+    grid_sample(output_bev, input_bev, grid_dev, output_dim, input_dim, grid_dim,
+                GridSamplerPadding::Zeros, true, stream);
+
+    if(adj_cnt == 0 || adj_cnt == 72){
+        std::vector<const void*> ptrs = {
+            input_bev, grid_dev, transform_dev, output_bev
+        };
+        std::vector<size_t> tensor_size = {80 * 128 * 128, 128 * 128 * 2, 6, 80 * 128 * 128};
+        std::vector<std::string> names = {"adjbev_in", "grid_in", "trans_in", "align_out"};
+        for(size_t i = 0; i < ptrs.size(); i++){
+            float *ptr = new float[tensor_size[i]];
+            CHECK_CUDA(cudaMemcpy(ptr, ptrs[i], tensor_size[i] * 4, cudaMemcpyDeviceToHost));
+            std::ofstream out("../test_plugin_out/" + names[i] + std::to_string(adj_cnt) + ".bin",
+                                std::ios::out | std::ios::binary);
+            out.write((char*)ptr, tensor_size[i] * 4);
+            out.close();
+            delete[] ptr;
+        }
+    }
+
+
     CHECK_CUDA(cudaFree(grid_dev));
     CHECK_CUDA(cudaFree(transform_dev));
+
+    adj_cnt++; // TODO
 }
 
 
@@ -576,6 +600,16 @@ int BEVDet::DoInfer(const camsData& cam_data, std::vector<Box> &out_detections, 
     printf("scenes_token : %s, timestamp : %lld\n", cam_data.param.scene_token.data(), 
                                 cam_data.param.timestamp);
 
+    // -----------------------
+    // uchar* imgs = new u_char[6 * 3 * 900 * 1600];
+    // CHECK_CUDA(cudaMemcpy(imgs, cam_data.imgs_dev, 6 * 3 * 900 * 1600 * sizeof(uchar), cudaMemcpyDeviceToHost));
+
+    // std::ofstream imgs_out("../test_plugin_out/imgs_in.bin", std::ios::out | std::ios::binary);
+    // imgs_out.write((char*)imgs, 6 * 3 * 900 * 1600);
+    // imgs_out.close();
+    // -----------------------
+
+
     auto pre_start = high_resolution_clock::now();
     // [STEP 1] : preprocess image, including resize, crop and normalize
 
@@ -584,6 +618,16 @@ int BEVDet::DoInfer(const camsData& cam_data, std::vector<Box> &out_detections, 
 
     preprocess(src_imgs_dev, (float*)imgstage_buffer[imgbuffer_map["images"]], N_img, src_img_h, src_img_w,
         input_img_h, input_img_w, resize_radio, resize_radio, crop_h, crop_w, mean, std, pre_sample);
+
+    // // ----------------------
+    // float* pre = new float[6 * 3 * 256 * 704];
+    // CHECK_CUDA(cudaMemcpy(pre, imgstage_buffer[imgbuffer_map["images"]], 6 * 3 * 256 * 704 * sizeof(float), cudaMemcpyDeviceToHost));
+
+    // std::ofstream pre_out("../test_plugin_out/pre_out.bin", std::ios::out | std::ios::binary);
+    // pre_out.write((char*)pre, 6 * 3 * 256 * 704 * sizeof(float));
+    // pre_out.close();
+    // // ----------------------
+
 
     InitDepth(cam_data.param.cams2ego_rot, cam_data.param.cams2ego_trans, cam_data.param.cams_intrin);
 
@@ -612,8 +656,39 @@ int BEVDet::DoInfer(const camsData& cam_data, std::vector<Box> &out_detections, 
                 ranks_depth_dev, ranks_feat_dev, ranks_bev_dev,
                 interval_starts_dev, interval_lengths_dev,
                 (float*)bevstage_buffer[bevbuffer_map["BEV_feat"]]
-
                 );
+
+    // valid_feat_num: 356760 
+    // unique_bev_num: 1336        
+    // 
+    // std::vector<void*> ptrs = {imgstage_buffer[imgbuffer_map["depth"]], 
+    //                         imgstage_buffer[imgbuffer_map["images_feat"]],
+    //                         ranks_depth_dev, 
+    //                         ranks_feat_dev, 
+    //                         ranks_bev_dev,
+    //                         interval_starts_dev, 
+    //                         interval_lengths_dev,
+    //                         bevstage_buffer[bevbuffer_map["BEV_feat"]]};
+
+    // std::vector<int> tensor_size = {6 * 118 * 16 * 44, 6 * 16 * 44 * 80, 356760, 356760, 356760, 13360, 13360, 80 * 128 * 128};
+    // std::vector<std::string> names = {"depth", "feat", "ranks_depth", "ranks_feat", "ranks_bev", "interval_starts",
+    // "interval_lengths", "bevpool_out"};
+    // for(int i = 0; i < tensor_size.size(); i++){
+    //     void* nums = nullptr;
+    //     if(i == 0 || i == 1 || i == 7){
+    //         nums = new float[tensor_size[i]];
+    //     }
+    //     else{
+    //         nums = new int[tensor_size[i]];
+    //     }
+    //     CHECK_CUDA(cudaMemcpy(nums, ptrs[i], tensor_size[i] * 4, cudaMemcpyDeviceToHost));
+    //     std::ofstream out("../test_plugin_out/" + names[i] + ".bin", std::ios::out | std::ios::binary);
+    //     out.write((char*)nums, tensor_size[i] * 4);
+    //     out.close();
+    // }
+    
+    //
+
     
     CHECK_CUDA(cudaDeviceSynchronize());
     auto bevpool_end = high_resolution_clock::now();

@@ -99,7 +99,7 @@ void TestNuscenes(YAML::Node &config){
     std::vector<Box> ego_boxes;
     double sum_time = 0;
     int  cnt = 0;
-    for(int i = 0; i < nuscenes.size(); i++){
+    for(int i = 0; i < 10; i++){
         ego_boxes.clear();
         float time = 0.f;
         bevdet.DoInfer(nuscenes.data(i), ego_boxes, time, i);
@@ -153,7 +153,7 @@ void TestSample(YAML::Node &config){
                                             sampleData.param.lidar2ego_trans);
     Boxes2Txt(lidar_boxes, output_lidarbox, false);
     ego_boxes.clear();
-    bevdet.DoInfer(sampleData, ego_boxes, time); // only for inference time
+    // bevdet.DoInfer(sampleData, ego_boxes, time); // only for inference time
 }
 
 int main(int argc, char **argv){

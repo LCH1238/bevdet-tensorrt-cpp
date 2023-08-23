@@ -5,6 +5,7 @@
 
 // resize, crop, norm
 // sample : Nearest
+
 __global__ void preprocess_nearest_kernel(const uchar* __restrict__ src_dev, 
                                     float* __restrict__ dst_dev, int src_row_step, 
                                     int dst_row_step, int src_img_step, int dst_img_step,

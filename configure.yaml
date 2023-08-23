@@ -1,4 +1,4 @@
-TestNuscenes: false # true or false
+TestNuscenes: true # true or false
 
 ModelConfig: ../cfgs/bevdet_lt_depth.yaml
 
@@ -18,11 +18,15 @@ CamConfig: ../sample0/sample0000.yaml
 InputFile: ../sample0/0.bin
 OutputLidarBox: ../sample0/sample0_lidarbox.txt
 
-ImgStageEngine: ../model/img_stage_lt_d_fp16.engine
-BEVStageEngine: ../model/bev_stage_lt_d_fp16.engine
+# ImgStageEngine: ../model/img_stage_lt_d_fp16_ftn.engine
+# BEVStageEngine: ../model/bev_stage_lt_d_fp16_ftn.engine
 
 
-OutputDir: ../output/
+ImgStageEngine: ../model/img_stage_lt_d_fp16_ftn.engine
+BEVStageEngine: ../model/bev_stage_lt_d_fp16_ftn.engine
+
+
+OutputDir: ../output/out822
 
 LoadDim: 5
 UseDim: 4

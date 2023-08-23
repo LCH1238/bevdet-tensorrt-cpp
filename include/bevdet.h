@@ -244,6 +244,8 @@ private:
     std::unique_ptr<PostprocessGPU> postprocess_ptr;
     std::unique_ptr<adjFrame> adj_frame_ptr;
 
+    size_t adj_cnt = 0;
+
 };
 
 
