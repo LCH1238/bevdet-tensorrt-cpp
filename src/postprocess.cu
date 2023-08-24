@@ -143,20 +143,18 @@ PostprocessGPU::~PostprocessGPU(){
 }
 
 
-
-
 void PostprocessGPU::DoPostprocess(void ** const bev_buffer, std::vector<Box>& out_detections){
 
     // bev_buffer : BEV_feat, reg_0, hei_0, dim_0, rot_0, vel_0, heatmap_0, reg_1 ...
     const int task_num = class_num_pre_task.size();
     int cur_start_label = 0;
     for(int i = 0; i < task_num; i++){
-        float* reg = (float*)bev_buffer[i * 6 + 1];     // 2 x 128 x 128
-        float* hei = (float*)bev_buffer[i * 6 + 2];     // 1 x 128 x 128
-        float* dim = (float*)bev_buffer[i * 6 + 3];     // 3 x 128 x 128
-        float* rot = (float*)bev_buffer[i * 6 + 4];     // 2 x 128 x 128
-        float* vel = (float*)bev_buffer[i * 6 + 5];     // 2 x 128 x 128
-        float* heatmap = (float*)bev_buffer[i * 6 + 6]; // c x 128 x 128
+        float* reg = (float*)bev_buffer[i * 6 + 0];     // 2 x 128 x 128
+        float* hei = (float*)bev_buffer[i * 6 + 1];     // 1 x 128 x 128
+        float* dim = (float*)bev_buffer[i * 6 + 2];     // 3 x 128 x 128
+        float* rot = (float*)bev_buffer[i * 6 + 3];     // 2 x 128 x 128
+        float* vel = (float*)bev_buffer[i * 6 + 4];     // 2 x 128 x 128
+        float* heatmap = (float*)bev_buffer[i * 6 + 5]; // c x 128 x 128
 
         dim3 grid(DIVUP(map_size, NUM_THREADS));
         CHECK_CUDA(cudaMemset(valid_box_num, 0, sizeof(int)));

@@ -87,19 +87,17 @@ void TestNuscenes(YAML::Node &config){
     int img_h = config["H"].as<int>();
     std::string data_info_path = config["dataset_info"].as<std::string>();
     std::string model_config = config["ModelConfig"].as<std::string>();
-    std::string imgstage_file = config["ImgStageEngine"].as<std::string>();
-    std::string bevstage_file = config["BEVStageEngine"].as<std::string>();
+    std::string engine_file = config["EngineFile"].as<std::string>();
     std::string output_dir = config["OutputDir"].as<std::string>();
     std::vector<std::string> cams_name = config["cams"].as<std::vector<std::string>>();
 
     DataLoader nuscenes(img_N, img_h, img_w, data_info_path, cams_name);
     BEVDet bevdet(model_config, img_N, nuscenes.get_cams_intrin(), 
-            nuscenes.get_cams2ego_rot(), nuscenes.get_cams2ego_trans(), imgstage_file,
-            bevstage_file);
+            nuscenes.get_cams2ego_rot(), nuscenes.get_cams2ego_trans(), engine_file);
     std::vector<Box> ego_boxes;
     double sum_time = 0;
     int  cnt = 0;
-    for(int i = 0; i < 10; i++){
+    for(int i = 0; i < 1; i++){
         ego_boxes.clear();
         float time = 0.f;
         bevdet.DoInfer(nuscenes.data(i), ego_boxes, time, i);
@@ -107,7 +105,7 @@ void TestNuscenes(YAML::Node &config){
             sum_time += time;
             cnt++;
         }
-        Boxes2Txt(ego_boxes, output_dir + "/bevdet_egoboxes_" + std::to_string(i) + ".txt", true);
+        // Boxes2Txt(ego_boxes, output_dir + "/bevdet_egoboxes_" + std::to_string(i) + ".txt", true);
     }
     printf("Infer mean cost time : %.5lf ms\n", sum_time / cnt);
 }
@@ -117,8 +115,7 @@ void TestSample(YAML::Node &config){
     int img_w = config["W"].as<int>();
     int img_h = config["H"].as<int>();
     std::string model_config = config["ModelConfig"].as<std::string>();
-    std::string imgstage_file = config["ImgStageEngine"].as<std::string>();
-    std::string bevstage_file = config["BEVStageEngine"].as<std::string>();
+    std::string engine_file = config["EngineFile"].as<std::string>();
     YAML::Node camconfig = YAML::LoadFile(config["CamConfig"].as<std::string>()); 
     std::string output_lidarbox = config["OutputLidarBox"].as<std::string>();
     YAML::Node sample = config["sample"];
@@ -135,7 +132,7 @@ void TestSample(YAML::Node &config){
 
     BEVDet bevdet(model_config, img_N, sampleData.param.cams_intrin, 
                 sampleData.param.cams2ego_rot, sampleData.param.cams2ego_trans, 
-                                                    imgstage_file, bevstage_file);
+                                                    engine_file);
     std::vector<std::vector<char>> imgs_data;
     read_sample(imgs_file, imgs_data);
 
