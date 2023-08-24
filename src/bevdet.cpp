@@ -183,6 +183,14 @@ void BEVDet::InitCamParams(const std::vector<Eigen::Quaternion<float>> &curr_cam
     CHECK_CUDA(cudaMemcpy(trt_buffer_dev[buffer_map["cam_params"]], cam_params_host, 
                             N_img * 27 * sizeof(float), cudaMemcpyHostToDevice));
     
+    for(int i = 0; i < 6; i++){
+        for(int j = 0; j < 27; j++){
+            printf("%7.2f ", cam_params_host[i * 27 + j]);
+        }
+        printf("\n");
+    }
+    printf("\n");
+
 }
 
 
@@ -686,6 +694,12 @@ int BEVDet::DoInfer(const camsData& cam_data, std::vector<Box> &out_detections, 
                 cam_data.param.cams2ego_trans, 
                 cam_data.param.cams_intrin);
 
+
+    std::ofstream out0("../test_plugin_out/one_cam_params_out0.bin", std::ios::out | std::ios::binary);
+    out0.write((char*)cam_params_host, 6 * 27 * sizeof(float));
+    out0.close();
+
+
     // GetAdjFrameFeature(cam_data.param.scene_token, cam_data.param.ego2global_rot, 
     //             cam_data.param.ego2global_trans, (float*)bevstage_buffer[bevbuffer_map["BEV_feat"]]);
 
@@ -714,6 +728,11 @@ int BEVDet::DoInfer(const camsData& cam_data, std::vector<Box> &out_detections, 
     out2.write((char*)tmp_pre, 6 * 3 * 256 * 704 * sizeof(float));
     out2.close();
 
+    float* heatmap = new float[10 * 128 * 128];
+    CHECK_CUDA(cudaMemcpy(heatmap, trt_buffer_dev[buffer_map["heatmap_0"]], 10 * 128 * 128 * sizeof(float), cudaMemcpyDeviceToHost));
+    std::ofstream out3("../test_plugin_out/one_heatmap_out0.bin", std::ios::out | std::ios::binary);
+    out3.write((char*)heatmap, 10 * 128 * 128 * sizeof(float));
+    out3.close();
 
 
     postprocess_ptr->DoPostprocess(post_buffer, out_detections);
