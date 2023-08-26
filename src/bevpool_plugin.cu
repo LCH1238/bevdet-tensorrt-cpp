@@ -142,7 +142,8 @@ int32_t BEVPoolPlugin::enqueue(const PluginTensorDesc *inputDesc, const PluginTe
     int map_size = m_.bev_h * m_.bev_w;
 
     // dim3 grid((int)ceil((float)(n_intervals * channel / NUM_THREADS)));
-    dim3 grid(CEIL_DIVIDE(n_intervals * channel, NUM_THREADS));
+
+    dim3 grid(DIVUP(n_intervals * channel, NUM_THREADS));
     dim3 block(NUM_THREADS);
 
     switch (int(outputDesc[0].type))

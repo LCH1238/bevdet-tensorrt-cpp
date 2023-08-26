@@ -33,6 +33,7 @@ __global__ void compute_sample_grid_kernel(float* __restrict__ grid,
         grid[i * bev_h * 2 + j * 2 + 0] = x / (bev_w - 1.0f) * 2.0f - 1.0f;
         grid[i * bev_h * 2 + j * 2 + 1] = y / (bev_h - 1.0f) * 2.0f - 1.0f;
     }
+
 }
 
 
@@ -262,34 +263,25 @@ DataType AlignBEVPlugin::getOutputDataType(int32_t index, DataType const *inputT
 
 DimsExprs AlignBEVPlugin::getOutputDimensions(int32_t outputIndex, const DimsExprs *inputs, 
                                         int32_t nbInputs, IExprBuilder &exprBuilder) noexcept {
-    return inputs[0];  // FIXME
+    return inputs[0]; 
 }
 
 bool AlignBEVPlugin::supportsFormatCombination(int32_t pos, const PluginTensorDesc *inOut,
                                                     int32_t nbInputs, int32_t nbOutputs) noexcept {
-    // adj_feat    curr_feat   out
-    if(pos == 0 || pos == 1 || pos == 4){
+    // adj_feat    out
+    if(pos == 0 || pos == 2){
         return (inOut[pos].type == DataType::kFLOAT || inOut[pos].type == DataType::kHALF) &&
                 inOut[pos].format == TensorFormat::kLINEAR;
-    }
-    else if(pos == 2){
+    }    // transform
+    else if(pos == 1){
         return inOut[pos].type == DataType::kFLOAT && inOut[pos].format == TensorFormat::kLINEAR;
-    }
-    else if(pos == 3){
-        return inOut[pos].type == DataType::kINT32 && inOut[pos].format == TensorFormat::kLINEAR;
     }
     return false;
 }
 
-void AlignBEVPlugin::configurePlugin(const DynamicPluginTensorDesc *in, int32_t nbInputs, 
-                                    const DynamicPluginTensorDesc *out, int32_t nbOutputs) noexcept {
-    CHECK_CUDA(cudaMalloc((void**)&grid_dev, m_.bev_h * m_.bev_w * 2 * sizeof(float)));
-    return;
-}
-
 size_t AlignBEVPlugin::getWorkspaceSize(const PluginTensorDesc *inputs, int32_t nbInputs, 
                                 const PluginTensorDesc *outputs, int32_t nbOutputs) const noexcept {
-    return 0;
+    return 80 * 128 * 128 * sizeof(float);
 }
 
 int32_t AlignBEVPlugin::enqueue(const PluginTensorDesc *inputDesc, const PluginTensorDesc *outputDesc,
@@ -297,23 +289,35 @@ int32_t AlignBEVPlugin::enqueue(const PluginTensorDesc *inputDesc, const PluginT
     
     // TODO
     // inputs[0] == adj_feat  80 x 128 x 128
-    // inputs[1] == curr_feat 80 x 128 x 128
-    // inputs[2] == transform 6
-    // inputs[3] == copy_flag int32
+    // inputs[1] == transform 6
 
     int bev_channel = inputDesc[0].dims.d[0];
 
-    int flag = 0;
-    CHECK_CUDA(cudaMemcpy(&flag, inputs[3], sizeof(int), cudaMemcpyDeviceToHost));
-    
-    if(flag != 0) flag = 1;
+    dim3 grid(DIVUP(m_.bev_h * m_.bev_w, NUM_THREADS));
+    dim3 block(NUM_THREADS);
 
-    compute_sample_grid_kernel<<<dim3(DIVUP(m_.bev_h * m_.bev_w, NUM_THREADS)), dim3(NUM_THREADS), 0, stream>>>(
+    compute_sample_grid_kernel<<<grid, block, 0, stream>>>(
         grid_dev,
-        reinterpret_cast<const float*>(inputs[2]),
+        reinterpret_cast<const float*>(inputs[1]),
         m_.bev_w,
         m_.bev_h
     );
+    // printf("%d %d %d\n", grid.x, grid.y, grid.z);
+    // printf("%d %d %d\n", block.x, block.y, block.z);
+
+    // int size = 6;
+    // float* tensor = new float[size];
+    // CHECK_CUDA(cudaMemcpy(tensor, inputs[1], size * sizeof(float), cudaMemcpyDeviceToHost));
+    // int cnt = 0;
+    // for(int i = 0; i < size; i++){
+    //     if(tensor[i] != 0 && cnt <= 5){
+    //         printf("%8.6f ", tensor[i]);
+    //         cnt++;
+    //     }
+    // }
+    // printf("\n");
+    // delete[] tensor;
+
 
     int output_dim[4] = {1, bev_channel, m_.bev_w, m_.bev_h};
     int input_dim[4] = {1, bev_channel, m_.bev_w, m_.bev_h};
@@ -324,7 +328,7 @@ int32_t AlignBEVPlugin::enqueue(const PluginTensorDesc *inputDesc, const PluginT
     case int(DataType::kFLOAT):
         grid_sample(
             reinterpret_cast<float *>(outputs[0]),
-            reinterpret_cast<const float *>(inputs[1 - flag]),
+            reinterpret_cast<const float *>(inputs[0]),
             grid_dev,
             output_dim,
             input_dim,
@@ -337,7 +341,7 @@ int32_t AlignBEVPlugin::enqueue(const PluginTensorDesc *inputDesc, const PluginT
     case int(DataType::kHALF):
         grid_sample(
             reinterpret_cast<__half *>(outputs[0]),
-            reinterpret_cast<const __half *>(inputs[1 - flag]),
+            reinterpret_cast<const __half *>(inputs[0]),
             grid_dev,
             output_dim,
             input_dim,
@@ -350,6 +354,8 @@ int32_t AlignBEVPlugin::enqueue(const PluginTensorDesc *inputDesc, const PluginT
     default: // should NOT be here
         printf("\tUnsupport datatype!\n");
     }
+
+
     return 0;
 }
 
@@ -359,6 +365,12 @@ void AlignBEVPlugin::destroy() noexcept {
         grid_dev = nullptr;
     }
     delete this;
+    return;
+}
+
+void AlignBEVPlugin::configurePlugin(const DynamicPluginTensorDesc *in, int32_t nbInputs, 
+                                    const DynamicPluginTensorDesc *out, int32_t nbOutputs) noexcept {
+    CHECK_CUDA(cudaMalloc((void**)&grid_dev, m_.bev_h * m_.bev_w * 2 * sizeof(float)));
     return;
 }
 

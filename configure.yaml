@@ -25,9 +25,11 @@ OutputLidarBox: ../sample0/sample0_lidarbox.txt
 ImgStageEngine: ../model/img_stage_lt_d_fp16_ftn.engine
 BEVStageEngine: ../model/bev_stage_lt_d_fp16_ftn.engine
 
-EngineFile: ../test_plugin/export_engine/bevdet_one_test2.engine
+# EngineFile: ../test_plugin/export_engine/bevdet_one_test2.engine
+EngineFile: ../test_plugin/export_engine/bevdet_onev4.engine
 
-OutputDir: ../output/one_engine_test1_fp32
+
+OutputDir: ../output/one_engine_test
 
 LoadDim: 5
 UseDim: 4

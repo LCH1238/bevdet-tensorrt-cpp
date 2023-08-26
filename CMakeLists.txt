@@ -51,7 +51,7 @@ add_compile_options(-std=c++11)
 # set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS}
 #   -ccbin ${CMAKE_CXX_COMPILER}"
 # )
-set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -std=c++11 -O0 -Xcompiler -fPIC -g -w -gencode=arch=compute_86,code=sm_86 -Xlinker --unresolved-symbols=ignore-in-shared-libs")
+set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -std=c++11 -O0 -Xcompiler -fPIC -g -w -gencode=arch=compute_86,code=sm_86")
 
 
 
@@ -95,11 +95,11 @@ cuda_add_executable(bevdemo
     demo_bevdet.cpp 
     src/bevdet.cpp 
     src/preprocess.cu 
-    src/bevpool.cu 
+    # src/bevpool.cu 
     src/iou3d_nms.cu
     src/postprocess.cu
     src/data.cpp
-    src/grid_sampler.cu
+    # src/grid_sampler.cu
     src/cpu_jpegdecoder.cpp
     src/nvjpegdecoder.cpp
 )
@@ -114,6 +114,8 @@ target_link_libraries(bevdemo
 cuda_add_library(preprocess_plugin SHARED src/preprocess_plugin.cu)
 cuda_add_library(bevpool_plugin SHARED src/bevpool_plugin.cu)
 cuda_add_library(alignbev_plugin SHARED src/alignbev_plugin.cu)
+cuda_add_library(gatherbev_plugin SHARED src/gatherbev_plugin.cu)
+
 
 
 

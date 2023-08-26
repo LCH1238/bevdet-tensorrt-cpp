@@ -69,7 +69,6 @@ BEVDet::BEVDet(const std::string &config_file, int n_img,
     MallocDeviceMemory();
 
     cam_params_host = new float[N_img * 27];
-    copy_flag_host = new int[adj_num];
 
 
     CHECK_CUDA(cudaMemcpy(trt_buffer_dev[buffer_map["ranks_bev"]], ranks_bev_ptr.get(), 
@@ -92,61 +91,6 @@ BEVDet::BEVDet(const std::string &config_file, int n_img,
 }
 
 
-
-// void BEVDet::InitDepth(const std::vector<Eigen::Quaternion<float>> &curr_cams2ego_rot,
-//                        const std::vector<Eigen::Translation3f> &curr_cams2ego_trans,
-//                        const std::vector<Eigen::Matrix3f> &cur_cams_intrin){
-//     float* rot_host = new float[N_img * 3 * 3];
-//     float* trans_host = new float[N_img * 3];
-//     float* intrin_host = new float[N_img * 3 * 3];
-//     float* post_rot_host = new float[N_img * 3 * 3];
-//     float* post_trans_host = new float[N_img * 3];
-//     float* bda_host = new float[3 * 3];
-
-//     for(int i = 0; i < N_img; i++){
-//         for(int j = 0; j < 3; j++){
-//             for(int k = 0; k < 3; k++){
-//                 rot_host[i * 9 + j * 3 + k] = curr_cams2ego_rot[i].matrix()(j, k);
-//                 intrin_host[i * 9 + j * 3 + k] = cur_cams_intrin[i](j, k);
-//                 post_rot_host[i * 9 + j * 3 + k] = post_rot(j, k);
-//             }
-//             trans_host[i * 3 + j] = curr_cams2ego_trans[i].translation()(j);
-//             post_trans_host[i * 3 + j] = post_trans.translation()(j);
-//         }
-//     }
-
-//     for(int i = 0; i < 3; i++){
-//         for(int j = 0; j < 3; j++){
-//             if(i == j){
-//                 bda_host[i * 3 + j] = 1.0;
-//             }
-//             else{
-//                 bda_host[i * 3 + j] = 0.0;
-//             }
-//         }
-//     }
-
-
-//     CHECK_CUDA(cudaMemcpy(imgstage_buffer[imgbuffer_map["rot"]], rot_host, 
-//                                 N_img * 3 * 3 * sizeof(float), cudaMemcpyHostToDevice));
-//     CHECK_CUDA(cudaMemcpy(imgstage_buffer[imgbuffer_map["trans"]], trans_host, 
-//                                 N_img * 3 * sizeof(float), cudaMemcpyHostToDevice));
-//     CHECK_CUDA(cudaMemcpy(imgstage_buffer[imgbuffer_map["intrin"]], intrin_host, 
-//                                 N_img * 3 * 3 * sizeof(float), cudaMemcpyHostToDevice));
-//     CHECK_CUDA(cudaMemcpy(imgstage_buffer[imgbuffer_map["post_rot"]], post_rot_host, 
-//                                 N_img * 3 * 3 * sizeof(float), cudaMemcpyHostToDevice));
-//     CHECK_CUDA(cudaMemcpy(imgstage_buffer[imgbuffer_map["post_trans"]], post_trans_host, 
-//                                 N_img * 3 * sizeof(float), cudaMemcpyHostToDevice));
-//     CHECK_CUDA(cudaMemcpy(imgstage_buffer[imgbuffer_map["bda"]], bda_host, 
-//                                 3 * 3 * sizeof(float), cudaMemcpyHostToDevice));
-
-//     delete[] rot_host;
-//     delete[] trans_host;
-//     delete[] intrin_host;
-//     delete[] post_rot_host;
-//     delete[] post_trans_host;
-//     delete[] bda_host;
-// }
 
 void BEVDet::InitCamParams(const std::vector<Eigen::Quaternion<float>> &curr_cams2ego_rot,
                            const std::vector<Eigen::Translation3f> &curr_cams2ego_trans,
@@ -182,14 +126,6 @@ void BEVDet::InitCamParams(const std::vector<Eigen::Quaternion<float>> &curr_cam
     }
     CHECK_CUDA(cudaMemcpy(trt_buffer_dev[buffer_map["cam_params"]], cam_params_host, 
                             N_img * 27 * sizeof(float), cudaMemcpyHostToDevice));
-    
-    for(int i = 0; i < 6; i++){
-        for(int j = 0; j < 27; j++){
-            printf("%7.2f ", cam_params_host[i * 27 + j]);
-        }
-        printf("\n");
-    }
-    printf("\n");
 
 }
 
@@ -320,7 +256,7 @@ void BEVDet::MallocDeviceMemory(){
         post_buffer[i * 6 + 1] = trt_buffer_dev[buffer_map["height_" + std::to_string(i)]];
         post_buffer[i * 6 + 2] = trt_buffer_dev[buffer_map["dim_" + std::to_string(i)]];
         post_buffer[i * 6 + 3] = trt_buffer_dev[buffer_map["rot_" + std::to_string(i)]];
-        post_buffer[i * 6 + 4] = trt_buffer_dev[buffer_map["heatmap_" + std::to_string(i)]];
+        post_buffer[i * 6 + 4] = trt_buffer_dev[buffer_map["vel_" + std::to_string(i)]];
         post_buffer[i * 6 + 5] = trt_buffer_dev[buffer_map["heatmap_" + std::to_string(i)]];
     }
 
@@ -464,7 +400,8 @@ int BEVDet::InitEngine(const std::string &engine_file){
 
     std::vector<std::string> dll_files {"./libbevpool_plugin.so",
                                         "./libpreprocess_plugin.so",
-                                        "./libalignbev_plugin.so"};
+                                        "./libalignbev_plugin.so",
+                                        "./libgatherbev_plugin.so"};
 
     for(auto dll_file : dll_files){
         loadLibrary(dll_file);
@@ -490,7 +427,7 @@ int BEVDet::InitEngine(const std::string &engine_file){
         {4, {6, 3, 900, 400}},
         {1, {3}},
         {1, {3}},
-        {2, {6, 27}},
+        {3, {1, 6, 27}},
         {1, {valid_feat_num}},
         {1, {valid_feat_num}},
         {1, {valid_feat_num}},
@@ -505,7 +442,7 @@ int BEVDet::InitEngine(const std::string &engine_file){
         {3, {80, 128, 128}},
         {3, {80, 128, 128}},
         {2, {8, 6}},
-        {1, {8}}
+        {1, {1}}
     };
     for(size_t i = 0; i < shapes.size(); i++){
          trt_context->setBindingDimensions(i, shapes[i]);
@@ -522,6 +459,14 @@ int BEVDet::InitEngine(const std::string &engine_file){
     std::cout << std::endl;
 
     return EXIT_SUCCESS;
+}
+void save_tensor(size_t size, const void * ptr, const std::string& file){
+    float* tensor = new float[size];
+    CHECK_CUDA(cudaMemcpy(tensor, ptr, size * sizeof(float), cudaMemcpyDeviceToHost));
+    std::ofstream out(file, std::ios::out | std::ios::binary);
+    out.write((char*)tensor, size * sizeof(float));
+    out.close();
+    delete[] tensor;
 }
 
 
@@ -570,28 +515,23 @@ int BEVDet::DeserializeTRTEngine(const std::string &engine_file,
 void BEVDet::GetAdjBEVFeature(const std::string &curr_scene_token, 
                          const Eigen::Quaternion<float> &ego2global_rot,
                          const Eigen::Translation3f &ego2global_trans) {
-    /* bev_buffer : 720 * 128 x 128
-    */
-    // bool reset = false;
-    // if(adj_frame_ptr->buffer_num == 0 || adj_frame_ptr->lastScenesToken() != curr_scene_token){
-    //     adj_frame_ptr->reset();
-    //     for(int i = 0; i < adj_num; i++){
-    //         adj_frame_ptr->saveFrameBuffer(bev_buffer, curr_scene_token, ego2global_rot,
-    //                                                                     ego2global_trans);
-    //     }
-    //     reset = true;
-    // }
-    
+
+    int flag = 1;
     if(adj_frame_ptr->lastScenesToken() != curr_scene_token){
         adj_frame_ptr->reset();
+        flag = 0;
     }
 
     // idx越小, adj_bevfeat越新 
-    for(int i = 0; i < adj_num; i++){ 
+    for(int i = 0; i < adj_num; i++){
         const float* adj_buffer = adj_frame_ptr->getFrameBuffer(i);
         CHECK_CUDA(cudaMemcpy(trt_buffer_dev[buffer_map["adj_feat" + std::to_string(i)]],
             adj_buffer, bevpool_channel * bev_w * bev_h * sizeof(float), cudaMemcpyDeviceToDevice));
 
+        // if(adj_cnt == 8){
+        //     save_tensor(80*128*128, trt_buffer_dev[buffer_map["adj_feat" + std::to_string(i)]], "../ttt/one_alginbevin_0.bin");
+        // }
+        // printf("adj_cnt : %d\n", adj_cnt);
         Eigen::Quaternion<float> adj_ego2global_rot;
         Eigen::Translation3f adj_ego2global_trans;
         adj_frame_ptr->getEgo2Global(i, adj_ego2global_rot, adj_ego2global_trans);
@@ -601,22 +541,12 @@ void BEVDet::GetAdjBEVFeature(const std::string &curr_scene_token,
                             ego2global_trans,
                             adj_ego2global_trans, 
                             (float *)trt_buffer_dev[buffer_map["transforms"]] + i * transform_size);
-
-        copy_flag_host[i] = adj_frame_ptr->havingBuffer(i);
     }
-    
-    for(int i = 0; i < adj_num; i++){
-        printf("%d ", copy_flag_host[i]);
-    }
-    printf("\n");
+    // printf("flag : %d\n", flag);
+    CHECK_CUDA(cudaMemcpy(trt_buffer_dev[buffer_map["flag"]], &flag, sizeof(int),
+                                                                    cudaMemcpyHostToDevice));
 
-    CHECK_CUDA(cudaMemcpy(trt_buffer_dev[buffer_map["copy_flag"]], copy_flag_host, adj_num * sizeof(int),
-                                                                            cudaMemcpyHostToDevice));
-
-    // if(!reset){
-    //     adj_frame_ptr->saveFrameBuffer(bev_buffer, curr_scene_token, 
-    //                                                 ego2global_rot, ego2global_trans);
-    // }
+    // save_tensor(6, trt_buffer_dev[buffer_map["transforms"]], "../ttt/one_trans_t2.bin");
 }
 
 
@@ -673,8 +603,16 @@ void BEVDet::GetCurr2AdjTransform(const Eigen::Quaternion<float> &curr_ego2globa
 
     CHECK_CUDA(cudaMemcpy(transform_dev, Eigen::Matrix3f(currgrid2adjgrid.transpose()).data(),
                                             transform_size * sizeof(float), cudaMemcpyHostToDevice));
-}
+    // printf("transform_size : %d\n", transform_size);
 
+
+
+    // if(adj_cnt == 8){
+    //     save_tensor(6, transform_dev, "../ttt/one_trans.bin");
+    // }
+
+    adj_cnt++;
+}
 
 
 
@@ -695,9 +633,9 @@ int BEVDet::DoInfer(const camsData& cam_data, std::vector<Box> &out_detections, 
                 cam_data.param.cams_intrin);
 
 
-    std::ofstream out0("../test_plugin_out/one_cam_params_out0.bin", std::ios::out | std::ios::binary);
-    out0.write((char*)cam_params_host, 6 * 27 * sizeof(float));
-    out0.close();
+    // std::ofstream out0("../test_plugin_out/one_cam_params_out0.bin", std::ios::out | std::ios::binary);
+    // out0.write((char*)cam_params_host, 6 * 27 * sizeof(float));
+    // out0.close();
 
 
     // GetAdjFrameFeature(cam_data.param.scene_token, cam_data.param.ego2global_rot, 
@@ -711,29 +649,45 @@ int BEVDet::DoInfer(const camsData& cam_data, std::vector<Box> &out_detections, 
         printf("BEVDet forward failing!\n");
     }
 
+
+
     adj_frame_ptr->saveFrameBuffer((float *)trt_buffer_dev[buffer_map["curr_bevfeat"]],
                                     cam_data.param.scene_token, 
                                     cam_data.param.ego2global_rot, 
                                     cam_data.param.ego2global_trans);
 
-    float* tmp_bev = new float[80 * 128 * 128];
-    CHECK_CUDA(cudaMemcpy(tmp_bev, trt_buffer_dev[buffer_map["curr_bevfeat"]], 80 * 128 * 128 * sizeof(float), cudaMemcpyDeviceToHost));
-    std::ofstream out("../test_plugin_out/one_bevpool_out0.bin", std::ios::out | std::ios::binary);
-    out.write((char*)tmp_bev, 80 * 128 * 128 * sizeof(float));
-    out.close();
 
-    float* tmp_pre = new float[6 * 3 * 256 * 704];
-    CHECK_CUDA(cudaMemcpy(tmp_pre, trt_buffer_dev[buffer_map["pre_out"]], 6 * 3 * 256 * 704 * sizeof(float), cudaMemcpyDeviceToHost));
-    std::ofstream out2("../test_plugin_out/one_pre_out0.bin", std::ios::out | std::ios::binary);
-    out2.write((char*)tmp_pre, 6 * 3 * 256 * 704 * sizeof(float));
-    out2.close();
+    // float* adj_feats = new float[640 * 128 * 128];
+    // for(int i = 0; i < adj_num; i++){
+    //     CHECK_CUDA(cudaMemcpy(adj_feats + i * 80 * 128 * 128, 
+    //                         trt_buffer_dev[buffer_map["adj_feat" + std::to_string(i)]],
+    //                         80 * 128 * 128 * sizeof(float), cudaMemcpyDeviceToHost));
+    // }
+    // std::ofstream outa("../plugin_out/adj_feats_in.bin", std::ios::out | std::ios::binary);
+    // outa.write((char*)adj_feats, 8 * 80 * 128 * 128 * sizeof(float));
+    // outa.close();
+    // delete[] adj_feats;
 
-    float* heatmap = new float[10 * 128 * 128];
-    CHECK_CUDA(cudaMemcpy(heatmap, trt_buffer_dev[buffer_map["heatmap_0"]], 10 * 128 * 128 * sizeof(float), cudaMemcpyDeviceToHost));
-    std::ofstream out3("../test_plugin_out/one_heatmap_out0.bin", std::ios::out | std::ios::binary);
-    out3.write((char*)heatmap, 10 * 128 * 128 * sizeof(float));
-    out3.close();
+    // save_tensor(640 * 128 * 128, trt_buffer_dev[buffer_map["adj_bevfeats"]], 
+    //                 "../plugin_out/adj_feats_out.bin");
 
+    
+
+    // float* tmp_bev = new float[80 * 128 * 128];
+    // CHECK_CUDA(cudaMemcpy(tmp_bev, trt_buffer_dev[buffer_map["curr_bevfeat"]], 80 * 128 * 128 * sizeof(float), cudaMemcpyDeviceToHost));
+    // std::ofstream out("../test_plugin_out/one_bevpool_out0.bin", std::ios::out | std::ios::binary);
+    // out.write((char*)tmp_bev, 80 * 128 * 128 * sizeof(float));
+    // out.close();
+    // save_tensor(80 * 128 * 128, trt_buffer_dev[buffer_map["curr_bevfeat"]],
+    //                 "../test_plugin_out/one_bevpool_out" + std::to_string(adj_cnt) + ".bin");
+
+    // save_tensor(10 * 128 * 128, trt_buffer_dev[buffer_map["heatmap_0"]], 
+    //                 "../test_plugin_out/one_heatmap_out" + std::to_string(adj_cnt) + ".bin");
+
+
+
+
+    // save_tensor(80 * 128 * 128, trt_buffer_dev[buffer_map["first_bev"]], "../ttt/one_adj_firstbev_out.bin");
 
     postprocess_ptr->DoPostprocess(post_buffer, out_detections);
     CHECK_CUDA(cudaDeviceSynchronize());
@@ -744,19 +698,12 @@ int BEVDet::DoInfer(const camsData& cam_data, std::vector<Box> &out_detections, 
 
     printf("Detect %ld objects\n", out_detections.size());
 
-
+    // adj_cnt++;
     return EXIT_SUCCESS;
 }
 
 
 BEVDet::~BEVDet(){
-    // CHECK_CUDA(cudaFree(ranks_bev_dev));
-    // CHECK_CUDA(cudaFree(ranks_depth_dev));
-    // CHECK_CUDA(cudaFree(ranks_feat_dev));
-    // CHECK_CUDA(cudaFree(interval_starts_dev));
-    // CHECK_CUDA(cudaFree(interval_lengths_dev));
-
-    // CHECK_CUDA(cudaFree(src_imgs_dev));
 
     for(int i = 0; i < trt_engine->getNbBindings(); i++){
         CHECK_CUDA(cudaFree(trt_buffer_dev[i]));
@@ -764,11 +711,10 @@ BEVDet::~BEVDet(){
     delete[] trt_buffer_dev;
     delete[] post_buffer;
 
+    delete[] cam_params_host;
+
     trt_context->destroy();
     trt_engine->destroy();
-
-    delete[] cam_params_host;
-    delete[] copy_flag_host;
 }
 
 

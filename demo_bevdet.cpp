@@ -97,7 +97,7 @@ void TestNuscenes(YAML::Node &config){
     std::vector<Box> ego_boxes;
     double sum_time = 0;
     int  cnt = 0;
-    for(int i = 0; i < 1; i++){
+    for(int i = 0; i < 2; i++){
         ego_boxes.clear();
         float time = 0.f;
         bevdet.DoInfer(nuscenes.data(i), ego_boxes, time, i);

@@ -65,6 +65,15 @@ public:
         CHECK_CUDA(cudaMemset(adj_buffer, 0, _n * _map_size * _bev_channel * sizeof(float)));
         last = 0;
         buffer_num = 0;
+        init = false;
+
+        for(auto &rot : ego2global_rot){
+            rot = Eigen::Quaternion<float>(0.f, 0.f, 0.f, 0.f);
+        }
+        for(auto &trans : ego2global_trans){
+            trans = Eigen::Translation3f(0.f, 0.f, 0.f);
+        }
+
     }  
     const std::string& lastScenesToken() const{
         return scenes_token[last];
@@ -73,19 +82,24 @@ public:
     void reset(){
         last = 0; // origin -1
         buffer_num = 0;
+        init = false;
     }
 
     void saveFrameBuffer(const float* curr_buffer, 
                         const std::string &curr_token, 
                         const Eigen::Quaternion<float> &_ego2global_rot,
                         const Eigen::Translation3f &_ego2global_trans){
-        last = (last + 1) % n;
-        CHECK_CUDA(cudaMemcpy(adj_buffer + last * map_size * bev_channel, curr_buffer,
-                        map_size * bev_channel * sizeof(float), cudaMemcpyDeviceToDevice));
-        scenes_token[last] = curr_token;
-        ego2global_rot[last] = _ego2global_rot;
-        ego2global_trans[last] = _ego2global_trans;
-        buffer_num = std::min(buffer_num + 1, n);
+        int iters = init ? 1 : n;
+        while(iters--){
+          last = (last + 1) % n;
+          CHECK_CUDA(cudaMemcpy(adj_buffer + last * map_size * bev_channel, curr_buffer,
+                          map_size * bev_channel * sizeof(float), cudaMemcpyDeviceToDevice));
+          scenes_token[last] = curr_token;
+          ego2global_rot[last] = _ego2global_rot;
+          ego2global_trans[last] = _ego2global_trans;
+          buffer_num = std::min(buffer_num + 1, n);
+        }
+        init = true;
     }
     int havingBuffer(int idx){
         return static_cast<int>(idx < buffer_num);
@@ -114,6 +128,7 @@ private:
 
     int last;
     int buffer_num;
+    bool init;
 
     std::vector<std::string> scenes_token;
     std::vector<Eigen::Quaternion<float>> ego2global_rot;
@@ -152,26 +167,9 @@ protected:
 
     void MallocDeviceMemory();
 
-    // void InitDepth(const std::vector<Eigen::Quaternion<float>> &curr_cams2ego_rot,
-    //                const std::vector<Eigen::Translation3f> &curr_cams2ego_trans,
-    //                const std::vector<Eigen::Matrix3f> &cams_intrin);
-
     void InitCamParams(const std::vector<Eigen::Quaternion<float>> &curr_cams2ego_rot,
                        const std::vector<Eigen::Translation3f> &curr_cams2ego_trans,
                        const std::vector<Eigen::Matrix3f> &cams_intrin);
-
-    void GetAdjFrameFeature(const std::string &curr_scene_token, 
-                     const Eigen::Quaternion<float> &ego2global_rot,
-                     const Eigen::Translation3f &ego2global_trans,
-                     float* bev_buffer);
-
-    void AlignBEVFeature(const Eigen::Quaternion<float> &curr_ego2global_rot,
-                         const Eigen::Quaternion<float> &adj_ego2global_rot,
-                         const Eigen::Translation3f &curr_ego2global_trans,
-                         const Eigen::Translation3f &adj_ego2global_trans,
-                         const float* input_bev,
-                         float* output_bev,
-                         cudaStream_t stream);
 
     void GetAdjBEVFeature(const std::string &curr_scene_token, 
                         const Eigen::Quaternion<float> &ego2global_rot,
@@ -223,16 +221,12 @@ private:
     float z_step;
     int zgrid_num;
 
-    // triplet mean;
-    // triplet std;
     std::vector<float> mean;
     std::vector<float> std;
 
     bool use_depth;
     bool use_adj;
     int adj_num;
-
-    // Sampler pre_sample;
 
 
     int class_num;
@@ -251,12 +245,8 @@ private:
     Eigen::Matrix3f post_rot;
     Eigen::Translation3f post_trans;
 
-    // uchar* src_imgs_dev;
-
     void** trt_buffer_dev;
-    // void** bevstage_buffer;
     float* cam_params_host;
-    int* copy_flag_host;
     void** post_buffer;
 
     std::map<std::string, int> buffer_map;
@@ -265,25 +255,11 @@ private:
     int unique_bev_num;
 
     int transform_size;
-    // int* ranks_bev_dev;
-    // int* ranks_depth_dev;
-    // int* ranks_feat_dev;
-    // int* interval_starts_dev;
-    // int* interval_lengths_dev;
-
 
     Logger g_logger;
 
-    // nvinfer1::ICudaEngine* imgstage_engine;
-    // nvinfer1::ICudaEngine* bevstage_engine;
-
     nvinfer1::ICudaEngine* trt_engine;
-
-
-
     nvinfer1::IExecutionContext* trt_context;
-    // nvinfer1::IExecutionContext* bevstage_context;
-
 
     std::unique_ptr<PostprocessGPU> postprocess_ptr;
     std::unique_ptr<adjFrame> adj_frame_ptr;

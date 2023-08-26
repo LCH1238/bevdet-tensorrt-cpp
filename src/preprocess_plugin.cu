@@ -18,6 +18,8 @@
 #include <cuda_fp16.h>
 #include <cuda_runtime_api.h>
 
+#include "common.h"
+
 // kernel for GPU
 
 template<typename T>
@@ -34,10 +36,17 @@ __global__ void preprocess_kernel(const uint8_t * src_dev,
                                 float offset_h, 
                                 float offset_w, 
                                 const T * mean, 
-                                const T * std){
-	int i = blockIdx.x;
-	int j = blockIdx.y;
-    int k = threadIdx.x;
+                                const T * std,
+                                int dst_h,
+                                int dst_w,
+                                int n){
+
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if(idx >= dst_h * dst_w * n) return;
+    
+    int i = (idx / n) / dst_w;
+    int j = (idx / n) % dst_w;
+    int k = idx % n;
 
 	int pX = (int) roundf((i / radio_h) + offset_h);
 	int pY = (int) roundf((j / radio_w) + offset_w);
@@ -116,8 +125,10 @@ DimsExprs PreprocessPlugin::getOutputDimensions(int32_t outputIndex, const DimsE
     ret.nbDims = inputs[0].nbDims;
     ret.d[0] = inputs[0].d[0];
     ret.d[1] = inputs[0].d[1];
-    ret.d[2] = exprBuilder.constant(output_h);
-    ret.d[3] = exprBuilder.constant(output_w);
+    ret.d[2] =  exprBuilder.constant(output_h);
+    ret.d[3] =  exprBuilder.constant(output_w);
+    // exprBuilder.operation()
+
     
     return ret;  // FIXME
 }
@@ -128,7 +139,8 @@ bool PreprocessPlugin::supportsFormatCombination(int32_t pos, const PluginTensor
     switch (pos)
     {
     case 0: // images
-        res = inOut[0].type == DataType::kINT32 && inOut[0].format == TensorFormat::kLINEAR;
+        res = (inOut[0].type == DataType::kINT8 || inOut[0].type == DataType::kINT32) && 
+                inOut[0].format == TensorFormat::kLINEAR;
         break;
     case 1: // mean
         res = (inOut[1].type == DataType::kFLOAT || inOut[1].type == DataType::kHALF) &&
@@ -142,7 +154,7 @@ bool PreprocessPlugin::supportsFormatCombination(int32_t pos, const PluginTensor
         res = (inOut[3].type == DataType::kFLOAT || inOut[3].type == DataType::kHALF) && 
                 inOut[3].format == inOut[0].format;
         break;
-    default: // should NOT be here!
+    default: 
         res = false;
     }
     return res;
@@ -177,9 +189,8 @@ int32_t PreprocessPlugin::enqueue(const PluginTensorDesc *inputDesc, const Plugi
     float offset_h = m_.crop_h / m_.resize_radio;
     float offset_w = m_.crop_w / m_.resize_radio;
 
-    dim3 grid(dst_img_h, dst_img_w);
-    dim3 block(n_img);
-
+    dim3 grid(DIVUP(dst_img_h * dst_img_w * n_img,  NUM_THREADS));
+    dim3 block(NUM_THREADS);
 
     switch (int(outputDesc[0].type))
     {
@@ -198,7 +209,10 @@ int32_t PreprocessPlugin::enqueue(const PluginTensorDesc *inputDesc, const Plugi
                                                 offset_h, 
                                                 offset_w, 
                                                 reinterpret_cast<const float *>(inputs[1]), 
-                                                reinterpret_cast<const float *>(inputs[2]));
+                                                reinterpret_cast<const float *>(inputs[2]),
+                                                dst_img_h, 
+                                                dst_img_w,
+                                                n_img);
         break;
     case int(DataType::kHALF):
         preprocess_kernel<<<grid, block, 0, stream>>>(
@@ -215,7 +229,10 @@ int32_t PreprocessPlugin::enqueue(const PluginTensorDesc *inputDesc, const Plugi
                                                 offset_h, 
                                                 offset_w, 
                                                 reinterpret_cast<const __half *>(inputs[1]), 
-                                                reinterpret_cast<const __half *>(inputs[2]));
+                                                reinterpret_cast<const __half *>(inputs[2]),
+                                                dst_img_h, 
+                                                dst_img_w,
+                                                n_img);
 
         break;
     default: // should NOT be here
