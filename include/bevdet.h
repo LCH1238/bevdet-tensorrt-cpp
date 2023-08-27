@@ -255,6 +255,7 @@ private:
     int unique_bev_num;
 
     int transform_size;
+    int cam_params_size;
 
     Logger g_logger;
 

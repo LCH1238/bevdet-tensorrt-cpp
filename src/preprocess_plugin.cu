@@ -19,6 +19,7 @@
 #include <cuda_runtime_api.h>
 
 #include "common.h"
+#include <iostream>
 
 // kernel for GPU
 
@@ -35,8 +36,8 @@ __global__ void preprocess_kernel(const uint8_t * src_dev,
                                 float radio_w, 
                                 float offset_h, 
                                 float offset_w, 
-                                const T * mean, 
-                                const T * std,
+                                const float * mean, 
+                                const float * std,
                                 int dst_h,
                                 int dst_w,
                                 int n){
@@ -60,9 +61,14 @@ __global__ void preprocess_kernel(const uint8_t * src_dev,
         int d2 = k * dst_img_step + 1 * dst_img_step / 3 + i * dst_row_step + j;
         int d3 = k * dst_img_step + 2 * dst_img_step / 3 + i * dst_row_step + j;
 
-		dst_dev[d1] = (static_cast<T>(src_dev[s1]) - mean[0]) / std[0];
-		dst_dev[d2] = (static_cast<T>(src_dev[s2]) - mean[1]) / std[1];
-		dst_dev[d3] = (static_cast<T>(src_dev[s3]) - mean[2]) / std[2];
+		dst_dev[d1] = static_cast<T>((static_cast<float>(src_dev[s1]) - mean[0]) / std[0]);
+		dst_dev[d2] = static_cast<T>((static_cast<float>(src_dev[s2]) - mean[1]) / std[1]);
+		dst_dev[d3] = static_cast<T>((static_cast<float>(src_dev[s3]) - mean[2]) / std[2]);
+        
+        // printf("%.3f %.3f \n", mean[0], static_cast<T>(src_dev[s1]));
+
+        // std::cout << mean[0] << ' ' << static_cast<T>(mean[0]) << std::endl;
+
 
         // T src1 = static_cast<T>(src_dev[s1]);
         // T src2 = static_cast<T>(src_dev[s2]);
@@ -127,10 +133,8 @@ DimsExprs PreprocessPlugin::getOutputDimensions(int32_t outputIndex, const DimsE
     ret.d[1] = inputs[0].d[1];
     ret.d[2] =  exprBuilder.constant(output_h);
     ret.d[3] =  exprBuilder.constant(output_w);
-    // exprBuilder.operation()
-
     
-    return ret;  // FIXME
+    return ret; 
 }
 
 bool PreprocessPlugin::supportsFormatCombination(int32_t pos, const PluginTensorDesc *inOut,
@@ -151,7 +155,10 @@ bool PreprocessPlugin::supportsFormatCombination(int32_t pos, const PluginTensor
                 inOut[2].format == TensorFormat::kLINEAR;
         break;
     case 3: // 输出 img tensor
-        res = (inOut[3].type == DataType::kFLOAT || inOut[3].type == DataType::kHALF) && 
+        // res = (inOut[3].type == DataType::kFLOAT || inOut[3].type == DataType::kHALF) && 
+        //         inOut[3].format == inOut[0].format;
+
+        res = (inOut[3].type == DataType::kFLOAT) && 
                 inOut[3].format == inOut[0].format;
         break;
     default: 
@@ -195,6 +202,7 @@ int32_t PreprocessPlugin::enqueue(const PluginTensorDesc *inputDesc, const Plugi
     switch (int(outputDesc[0].type))
     {
     case int(DataType::kFLOAT):
+        printf("pre float\n");
         preprocess_kernel<<<grid, block, 0, stream>>>(
                                                 reinterpret_cast<const uint8_t *>(inputs[0]),
                                                 reinterpret_cast<float *>(outputs[0]),
@@ -214,25 +222,26 @@ int32_t PreprocessPlugin::enqueue(const PluginTensorDesc *inputDesc, const Plugi
                                                 dst_img_w,
                                                 n_img);
         break;
-    case int(DataType::kHALF):
-        preprocess_kernel<<<grid, block, 0, stream>>>(
-                                                reinterpret_cast<const uint8_t *>(inputs[0]),
-                                                reinterpret_cast<__half *>(outputs[0]),
-                                                src_row_step, 
-                                                dst_row_step, 
-                                                src_img_step,
-                                                dst_img_step, 
-                                                src_img_h, 
-                                                src_img_w, 
-                                                m_.resize_radio,
-                                                m_.resize_radio, 
-                                                offset_h, 
-                                                offset_w, 
-                                                reinterpret_cast<const __half *>(inputs[1]), 
-                                                reinterpret_cast<const __half *>(inputs[2]),
-                                                dst_img_h, 
-                                                dst_img_w,
-                                                n_img);
+    // case int(DataType::kHALF):
+    //     printf("pre half\n");
+    //     preprocess_kernel<<<grid, block, 0, stream>>>(
+    //                                             reinterpret_cast<const uint8_t *>(inputs[0]),
+    //                                             reinterpret_cast<__half *>(outputs[0]),
+    //                                             src_row_step, 
+    //                                             dst_row_step, 
+    //                                             src_img_step,
+    //                                             dst_img_step, 
+    //                                             src_img_h, 
+    //                                             src_img_w, 
+    //                                             m_.resize_radio,
+    //                                             m_.resize_radio, 
+    //                                             offset_h, 
+    //                                             offset_w, 
+    //                                             reinterpret_cast<const float *>(inputs[1]), 
+    //                                             reinterpret_cast<const float *>(inputs[2]),
+    //                                             dst_img_h, 
+    //                                             dst_img_w,
+    //                                             n_img);
 
         break;
     default: // should NOT be here

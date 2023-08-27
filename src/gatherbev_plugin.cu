@@ -19,6 +19,37 @@
 #include <cuda_fp16.h>
 #include <cuda_runtime_api.h>
 
+// input[0] == adj_feat   b x 8 x 80 x 128 x 128
+// input[1] == curr_feat  b x 80 x 128 x 128
+// input[2] == flag       b x 1
+// out[0]                 b x (8+1)*80 x 128 x 128
+template<typename T>
+__global__ void copy_feat_kernel(int nthreads, // b * (adj_num + 1) * map_size
+                                int adj_num,
+                                int channel,
+                                int map_size,
+                                const T* adj_feats,
+                                const T* curr_feat,
+                                const int* flag,
+                                T* out_feats){
+    CUDA_1D_KERNEL_LOOP(idx, nthreads){
+        int b = idx / ((adj_num + 1) * map_size);
+        int n = (idx / map_size) % (adj_num + 1);
+        int m = idx % map_size;
+
+        int start = b * (adj_num + 1) * channel * map_size + n * channel * map_size + m;
+        int end = start + channel * map_size;
+        for(int i = start, c = 0; i < end; i += map_size, c++){
+            if(flag[b] == 0 || n == 0){
+                out_feats[i] = curr_feat[b * channel * map_size + c * map_size + m];
+            }
+            else{
+                out_feats[i] = adj_feats[i - channel * map_size];
+            }
+        }
+    }
+}
+
 
 namespace nvinfer1
 {
@@ -52,17 +83,20 @@ DataType GatherBEVPlugin::getOutputDataType(int32_t index, DataType const *input
 
 DimsExprs GatherBEVPlugin::getOutputDimensions(int32_t outputIndex, const DimsExprs *inputs, 
                                         int32_t nbInputs, IExprBuilder &exprBuilder) noexcept {
-  // input[0] == adj_feat   8*80 x 128 x 128
-  // input[1] == curr_feat  80 * 128 * 128
-  // input[2] == flag       1
-
+  // input[0] == adj_feat   b x 8 x 80 x 128 x 128
+  // input[1] == curr_feat  b x 80 x 128 x 128
+  // input[2] == flag       b x 1
+  // out[0]                 b x (8+1)*80 x 128 x 128
     DimsExprs ret;
-    ret.nbDims = inputs[0].nbDims + 1;
+    ret.nbDims = inputs[0].nbDims - 1;
 
-    ret.d[0] = exprBuilder.constant(1);
-    ret.d[1] = exprBuilder.operation(DimensionOperation::kSUM, *inputs[0].d[0], *inputs[1].d[0]);
-    ret.d[2] = inputs[0].d[1];
-    ret.d[3] = inputs[0].d[2];
+    IDimensionExpr const *n_feat = exprBuilder.operation(DimensionOperation::kSUM, 
+                                                        *inputs[0].d[1],
+                                                        *exprBuilder.constant(1));
+    ret.d[0] = inputs[0].d[0];
+    ret.d[1] = exprBuilder.operation(DimensionOperation::kPROD, *n_feat, *inputs[0].d[2]);
+    ret.d[2] = inputs[0].d[3];
+    ret.d[3] = inputs[0].d[4];
 
     return ret; 
 }
@@ -92,45 +126,84 @@ size_t GatherBEVPlugin::getWorkspaceSize(const PluginTensorDesc *inputs, int32_t
 
 int32_t GatherBEVPlugin::enqueue(const PluginTensorDesc *inputDesc, const PluginTensorDesc *outputDesc,
     const void *const *inputs, void *const *outputs, void *workspace, cudaStream_t stream) noexcept {
-    // input[0] == adj_feat   8*80 x 128 x 128
-    // input[1] == curr_feat  80 * 128 * 128
-    // input[2] == flag       1
+
+  // input[0] == adj_feat   b x 8 x 80 x 128 x 128
+  // input[1] == curr_feat  b x 80 x 128 x 128
+  // input[2] == flag       b x 1
+  // out[0]                 b x (8+1)*80 x 128 x 128
+
+    // int nthreads, // b * (adj_num + 1) * map_size
+    // int adj_num,
+    // int channel,
+    // int map_size,
 
     int flag = 0;
     CHECK_CUDA(cudaMemcpy(&flag, inputs[2], sizeof(int), cudaMemcpyDeviceToHost));
 
-    int feat_step = inputDesc[1].dims.d[0] * inputDesc[1].dims.d[1] * inputDesc[1].dims.d[2];
-    int adj_num = inputDesc[0].dims.d[0] / inputDesc[1].dims.d[0];
+    int b = inputDesc[0].dims.d[0];
+    int adj_num = inputDesc[0].dims.d[1];
+    int map_size = inputDesc[0].dims.d[3] * inputDesc[0].dims.d[4];
+    int channel = inputDesc[0].dims.d[2];
+
+    int feat_step = inputDesc[1].dims.d[1] * inputDesc[1].dims.d[2] * inputDesc[1].dims.d[3];
+    // printf("feat_step : %d\n", feat_step);
+    // printf("adj_num : %d\n", adj_num);
+    // printf("flag : %d\n", flag);
+    int nthreads = b * (adj_num + 1) * map_size;
+
+    dim3 grid(GET_BLOCKS(nthreads));
+    dim3 block(NUM_THREADS);
 
     switch (int(outputDesc[0].type))
     {
     case int(DataType::kFLOAT):
-        if(!flag){
-            for(int i = 0; i < adj_num + 1; i++){
-                CHECK_CUDA(cudaMemcpy((float*)outputs[0] + i * feat_step, inputs[1], 
-                                        feat_step * sizeof(float), cudaMemcpyDeviceToDevice));
-            }
-            // printf("flag %d\n", flag);
-        }
-        else{
-            CHECK_CUDA(cudaMemcpy(outputs[0], inputs[1], feat_step * sizeof(float), cudaMemcpyDeviceToDevice));
-            CHECK_CUDA(cudaMemcpy((float*)outputs[0] + feat_step, inputs[0], adj_num * feat_step * sizeof(float),
-                                    cudaMemcpyDeviceToDevice));
-            // printf("flag %d\n", flag);
-        }
+        // printf("copy feat!\n");
+        copy_feat_kernel<<<grid, block, 0, stream>>>(nthreads,
+                                                    adj_num,
+                                                    channel,
+                                                    map_size,
+                                                    reinterpret_cast<const float*>(inputs[0]),
+                                                    reinterpret_cast<const float*>(inputs[1]),
+                                                    reinterpret_cast<const int*>(inputs[2]),
+                                                    reinterpret_cast<float*>(outputs[0]));
+        // printf("copy feat! done!\n");
+        
+
+
+        // if(!flag){
+        //     for(int i = 0; i < adj_num + 1; i++){
+        //         CHECK_CUDA(cudaMemcpy((float*)outputs[0] + i * feat_step, inputs[1], 
+        //                                 feat_step * sizeof(float), cudaMemcpyDeviceToDevice));
+        //     }
+        //     // printf("flag %d\n", flag);
+        // }
+        // else{
+        //     CHECK_CUDA(cudaMemcpy(outputs[0], inputs[1], feat_step * sizeof(float), cudaMemcpyDeviceToDevice));
+        //     CHECK_CUDA(cudaMemcpy((float*)outputs[0] + feat_step, inputs[0], adj_num * feat_step * sizeof(float),
+        //                             cudaMemcpyDeviceToDevice));
+        //     // printf("flag %d\n", flag);
+        // }
         break;
     case int(DataType::kHALF):
-        if(!flag){
-            for(int i = 0; i < adj_num + 1; i++){
-                CHECK_CUDA(cudaMemcpy((__half*)outputs[0] + i * feat_step, inputs[1], 
-                                        feat_step * sizeof(__half), cudaMemcpyDeviceToDevice));
-            }
-        }
-        else{
-            CHECK_CUDA(cudaMemcpy(outputs[0], inputs[1], feat_step * sizeof(__half), cudaMemcpyDeviceToDevice));
-            CHECK_CUDA(cudaMemcpy((__half*)outputs[0] + feat_step, inputs[0], adj_num * feat_step * sizeof(__half),
-                                    cudaMemcpyDeviceToDevice));
-        }
+        // if(!flag){
+        //     for(int i = 0; i < adj_num + 1; i++){
+        //         CHECK_CUDA(cudaMemcpy((__half*)outputs[0] + i * feat_step, inputs[1], 
+        //                                 feat_step * sizeof(__half), cudaMemcpyDeviceToDevice));
+        //     }
+        // }
+        // else{
+        //     CHECK_CUDA(cudaMemcpy(outputs[0], inputs[1], feat_step * sizeof(__half), cudaMemcpyDeviceToDevice));
+        //     CHECK_CUDA(cudaMemcpy((__half*)outputs[0] + feat_step, inputs[0], adj_num * feat_step * sizeof(__half),
+        //                             cudaMemcpyDeviceToDevice));
+        // }
+        copy_feat_kernel<<<grid, block, 0, stream>>>(nthreads,
+                                                    adj_num,
+                                                    channel,
+                                                    map_size,
+                                                    reinterpret_cast<const __half*>(inputs[0]),
+                                                    reinterpret_cast<const __half*>(inputs[1]),
+                                                    reinterpret_cast<const int*>(inputs[2]),
+                                                    reinterpret_cast<__half*>(outputs[0]));
         break;
     default: // should NOT be here
         printf("\tUnsupport datatype!\n");

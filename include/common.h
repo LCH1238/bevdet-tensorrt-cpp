@@ -9,12 +9,11 @@
 
 typedef unsigned char uchar;
 
-// using MACRO to allocate memory inside CUDA kernel
-#define NUM_3D_BOX_CORNERS 8
-#define NUM_2D_BOX_CORNERS 4
-#define NUM_THREADS 64 //  need to be changed when num_threads is changed
+#define NUM_THREADS 512 
 
 #define CHECK_CUDA(ans) { GPUAssert((ans), __FILE__, __LINE__); }
+
+#define DIVUP(m, n) (((m) + (n)-1) / (n))
 
 inline void GPUAssert(cudaError_t code, const char *file, int line, bool abort = true) {
   if (code != cudaSuccess) {
@@ -23,11 +22,21 @@ inline void GPUAssert(cudaError_t code, const char *file, int line, bool abort =
   }
 };
 
+#define CUDA_1D_KERNEL_LOOP(i, n) \
+  for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < (n); i += blockDim.x * gridDim.x)
 
-#define DIVUP(m, n) ((m) / (n) + ((m) % (n) > 0))
+const int MAXTENSORDIMS = 6;
+struct TensorDesc {
+  int shape[MAXTENSORDIMS];
+  int stride[MAXTENSORDIMS];
+  int dim;
+};
 
+inline int GET_BLOCKS(const int N) {
+  int optimal_block_num = DIVUP(N, NUM_THREADS);
+  int max_block_num = 4096;
+  return optimal_block_num < max_block_num ? optimal_block_num : max_block_num;
+}
 
-#define CEIL_DIVIDE(X, Y) (((X) + (Y)-1) / (Y))
-#define ALIGN_TO(X, Y)    (CEIL_DIVIDE(X, Y) * (Y))
 
 #endif

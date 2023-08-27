@@ -39,11 +39,12 @@ private:
     {
         int bev_h;
         int bev_w;
+        int n;
     } m_;
 
 public:
     BEVPoolPlugin() = delete;
-    BEVPoolPlugin(const std::string &name, int bev_h, int bev_w);
+    BEVPoolPlugin(const std::string &name, int bev_h, int bev_w, int n);
     BEVPoolPlugin(const std::string &name, const void *buffer, size_t length);
     ~BEVPoolPlugin();
 

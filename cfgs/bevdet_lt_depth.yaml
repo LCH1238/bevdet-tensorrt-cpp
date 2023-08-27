@@ -4,6 +4,8 @@ std: [58.395, 57.12, 57.375]
 use_depth: true #false
 use_adj: true
 adj_num: 8
+transform_size: 6
+cam_params_size: 27
 sampling: nearest # nearest # or bicubic 
 data_config:
     Ncams: 6

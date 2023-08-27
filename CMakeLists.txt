@@ -95,11 +95,9 @@ cuda_add_executable(bevdemo
     demo_bevdet.cpp 
     src/bevdet.cpp 
     src/preprocess.cu 
-    # src/bevpool.cu 
     src/iou3d_nms.cu
     src/postprocess.cu
     src/data.cpp
-    # src/grid_sampler.cu
     src/cpu_jpegdecoder.cpp
     src/nvjpegdecoder.cpp
 )

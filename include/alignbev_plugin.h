@@ -21,19 +21,6 @@
 #include <unistd.h>
 #include <iostream>
 
-
-#define CUDA_1D_KERNEL_LOOP(i, n) \
-  for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < (n); i += blockDim.x * gridDim.x)
-
-enum class GridSamplerPadding { Zeros, Border, Reflection };
-
-const int MAXTENSORDIMS = 10;
-struct TensorDesc {
-  int shape[MAXTENSORDIMS];
-  int stride[MAXTENSORDIMS];
-  int dim;
-};
-
 namespace
 {
 static const char *PLUGIN_NAME {"AlignBEV"};
@@ -49,14 +36,11 @@ private:
     std::string       namespace_;
     struct
     {
-        int bev_h;
-        int bev_w;
     } m_;
-    float* grid_dev = nullptr;
 
 public:
     AlignBEVPlugin() = delete;
-    AlignBEVPlugin(const std::string &name, int bev_h, int bev_w);
+    AlignBEVPlugin(const std::string &name);
     AlignBEVPlugin(const std::string &name, const void *buffer, size_t length);
     ~AlignBEVPlugin();
 

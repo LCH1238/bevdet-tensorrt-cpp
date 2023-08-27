@@ -11,6 +11,7 @@
 ![图](BEVDet-TensorRT.png)
 
 本项目实现了:
+- 实现了TensorRT的plugin: AigenBEV, Preprocess, BEVPool, GatherBEV
 - 长时序（long-term）模型的推理
 - Depth模型的推理
 - 在NVIDIA A4000上，BEVDet-r50-lt-depth模型中，TRT FP32模型推理速度比PyTorch FP32模型**快2.38倍**, TRT FP16模型比PyTorch FP32模型**快5.21倍**

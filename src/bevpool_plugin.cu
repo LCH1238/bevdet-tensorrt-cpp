@@ -19,47 +19,59 @@
 #include <cuda_fp16.h>
 #include <cuda_runtime_api.h>
 
-// kernel for GPU
+// input[0] depth            b*n x d x h x w
+// input[1] feat             b*n x c x h x w
+// input[2] ranks_depth      m
+// input[3] ranks_feat       m
+// input[4] ranks_bev        m
+// input[5] interval_starts  k
+// input[6] interval_lengths k
+
+// out[0]   bevfeat          b x c x h x w    
+
 template<typename T>
-__global__ void bev_pool_v2_kernel(int c, int n_intervals, int map_size,
-                                  const T *__restrict__ depth,
-                                  const T *__restrict__ feat,
-                                  const int *__restrict__ ranks_depth,
-                                  const int *__restrict__ ranks_feat,
-                                  const int *__restrict__ ranks_bev,
-                                  const int *__restrict__ interval_starts,
-                                  const int *__restrict__ interval_lengths,
-                                  T * __restrict__ out) {
-    // 进入到一个kernel的都是一个bevgrid要计算的特征的某一维度
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    int index = idx / c;    // bev grid index
-    int cur_c = idx % c;    // channel index
-    if (index >= n_intervals) return;
-    int interval_start = interval_starts[index];  
-    int interval_length = interval_lengths[index];  
-    T psum = 0;
-    const T * cur_depth;
-    const T * cur_feat;
-    for(int i = 0; i < interval_length; i++){
-        cur_depth = depth + ranks_depth[interval_start+i];            // 指向 深度概率值
-        cur_feat = feat + ranks_feat[interval_start+i] * c + cur_c;   // 指向 cur_c通道图像特征值
-        psum += *cur_feat * *cur_depth;
+__global__ void bev_pool_v2_kernel(int channel, 
+                                    int n_intervals,
+                                    int map_size,
+                                    int img_size,
+                                    const T *__restrict__ depth,
+                                    const T *__restrict__ feat,
+                                    const int *__restrict__ ranks_depth,
+                                    const int *__restrict__ ranks_feat,
+                                    const int *__restrict__ ranks_bev,
+                                    const int *__restrict__ interval_starts,
+                                    const int *__restrict__ interval_lengths,
+                                    T * __restrict__ out) {
+    CUDA_1D_KERNEL_LOOP(idx, n_intervals * channel){
+        int index = idx / channel;    // bev grid index
+        int curr_c = idx % channel;    // channel index
+        int interval_start = interval_starts[index];  
+        int interval_length = interval_lengths[index];  
+
+        int curr_step = curr_c * img_size;
+        int chan_step = channel * img_size;
+
+        T sum = 0;
+
+        int feat_offset = 0;
+        for(int i = 0; i < interval_length; i++){
+            feat_offset = ranks_feat[interval_start + i] / img_size * chan_step + 
+                          curr_step + ranks_feat[interval_start + i] % img_size;
+  
+            sum += feat[feat_offset] * depth[ranks_depth[interval_start + i]];
+        }
+        out[curr_c * map_size + ranks_bev[interval_start]] = sum;
     }
-
-    const int* cur_rank = ranks_bev + interval_start;  // 指向 某bevgrid
-    // float* cur_out = out + *cur_rank * c + cur_c;   // b x h x w x c
-    T* cur_out = out + cur_c * map_size + *cur_rank;      // b x c x h x w
-
-    *cur_out = psum;
 }
 
 namespace nvinfer1
 {
 // class BEVPoolPlugin
-BEVPoolPlugin::BEVPoolPlugin(const std::string &name, int bev_h, int bev_w):
+BEVPoolPlugin::BEVPoolPlugin(const std::string &name, int bev_h, int bev_w, int n):
     name_(name){
     m_.bev_h = bev_h;
     m_.bev_w = bev_w;
+    m_.n = n;
 }
 
 BEVPoolPlugin::BEVPoolPlugin(const std::string &name, const void *buffer, size_t length):
@@ -82,24 +94,28 @@ int32_t BEVPoolPlugin::getNbOutputs() const noexcept {
  
 DataType BEVPoolPlugin::getOutputDataType(int32_t index, DataType const *inputTypes, 
                                                                 int32_t nbInputs) const noexcept {
-    return inputTypes[0];  // 与mean一致
+    return inputTypes[0];  // 与depth一致
 }
 
 DimsExprs BEVPoolPlugin::getOutputDimensions(int32_t outputIndex, const DimsExprs *inputs, 
                                         int32_t nbInputs, IExprBuilder &exprBuilder) noexcept {
-  // input[0] == depth->kFLOAT
-  // input[1] == feat->kFLOAT
-  // input[2] == ranks_depth->kINT32
-  // input[3] == ranks_feat->kINT32
-  // input[4] == ranks_bev->kINT32
-  // input[5] == interval_starts->kINT32
-  // input[6] == interval_lengths->kINT32
+    // input[0] depth            b*n x d x h x w
+    // input[1] feat             b*n x c x h x w
+
+    // input[2] ranks_depth      1 x m
+    // input[3] ranks_feat       1 x m
+    // input[4] ranks_bev        1 x m
+    // input[5] interval_starts  1 x k
+    // input[6] interval_lengths 1 x k
+
+    // out[0]   bevfeat          b x c x h x w    
 
     DimsExprs ret;
-    ret.nbDims = inputs[1].nbDims - 1;
-    ret.d[0] = inputs[1].d[3];
-    ret.d[1] = exprBuilder.constant(m_.bev_h);
-    ret.d[2] = exprBuilder.constant(m_.bev_w);
+    ret.nbDims = inputs[1].nbDims;
+    ret.d[0] = exprBuilder.operation(DimensionOperation::kFLOOR_DIV, *inputs[1].d[0], *exprBuilder.constant(m_.n)); 
+    ret.d[1] = inputs[1].d[1];
+    ret.d[2] = exprBuilder.constant(m_.bev_h);
+    ret.d[3] = exprBuilder.constant(m_.bev_w);
     
     return ret;  // FIXME
 }
@@ -108,7 +124,7 @@ bool BEVPoolPlugin::supportsFormatCombination(int32_t pos, const PluginTensorDes
                                                     int32_t nbInputs, int32_t nbOutputs) noexcept {
     // depth       feat        out
     if(pos == 0 || pos == 1 || pos == 7){
-        return (inOut[pos].type == DataType::kFLOAT || inOut[pos].type == DataType::kHALF) &&
+        return (inOut[pos].type == DataType::kFLOAT || inOut[pos].type == DataType::kFLOAT) &&
                 inOut[pos].format == TensorFormat::kLINEAR;
     }
     else{
@@ -129,21 +145,20 @@ size_t BEVPoolPlugin::getWorkspaceSize(const PluginTensorDesc *inputs, int32_t n
 
 int32_t BEVPoolPlugin::enqueue(const PluginTensorDesc *inputDesc, const PluginTensorDesc *outputDesc,
     const void *const *inputs, void *const *outputs, void *workspace, cudaStream_t stream) noexcept {
-    // input[0] == depth->kFLOAT
-    // input[1] == feat->kFLOAT
-    // input[2] == ranks_depth->kINT32
-    // input[3] == ranks_feat->kINT32
-    // input[4] == ranks_bev->kINT32
-    // input[5] == interval_starts->kINT32
-    // input[6] == interval_lengths->kINT32
+    // input[0] == depth            b*n x d x h x w
+    // input[1] == feat             b*n x c x h x w
+    // input[2] == ranks_depth      1 x m
+    // input[3] == ranks_feat       1 x m
+    // input[4] == ranks_bev        1 x m
+    // input[5] == interval_starts  1 x k
+    // input[6] == interval_lengths 1 x k
 
-    int channel = inputDesc[1].dims.d[3];
+    int channel = inputDesc[1].dims.d[1];
     int n_intervals = inputDesc[5].dims.d[0];
     int map_size = m_.bev_h * m_.bev_w;
+    int img_size = inputDesc[0].dims.d[2] * inputDesc[0].dims.d[3];
 
-    // dim3 grid((int)ceil((float)(n_intervals * channel / NUM_THREADS)));
-
-    dim3 grid(DIVUP(n_intervals * channel, NUM_THREADS));
+    dim3 grid(GET_BLOCKS(n_intervals * channel));
     dim3 block(NUM_THREADS);
 
     switch (int(outputDesc[0].type))
@@ -153,6 +168,7 @@ int32_t BEVPoolPlugin::enqueue(const PluginTensorDesc *inputDesc, const PluginTe
                                                     channel, 
                                                     n_intervals,
                                                     map_size,
+                                                    img_size,
                                                     reinterpret_cast<const float *>(inputs[0]),
                                                     reinterpret_cast<const float *>(inputs[1]),
                                                     reinterpret_cast<const int *>(inputs[2]),
@@ -161,12 +177,14 @@ int32_t BEVPoolPlugin::enqueue(const PluginTensorDesc *inputDesc, const PluginTe
                                                     reinterpret_cast<const int *>(inputs[5]),
                                                     reinterpret_cast<const int *>(inputs[6]),
                                                     reinterpret_cast<float *>(outputs[0]));
+        printf("bevpool fp32\n");
         break;
     case int(DataType::kHALF):
         bev_pool_v2_kernel<<<grid, block, 0, stream>>>(
                                                     channel, 
                                                     n_intervals,
                                                     map_size,
+                                                    img_size,
                                                     reinterpret_cast<const __half *>(inputs[0]),
                                                     reinterpret_cast<const __half *>(inputs[1]),
                                                     reinterpret_cast<const int *>(inputs[2]),
@@ -238,6 +256,8 @@ BEVPoolPluginCreator::BEVPoolPluginCreator() {
     attr_.clear();
     attr_.emplace_back(PluginField("bev_h", nullptr, PluginFieldType::kINT32, 1));
     attr_.emplace_back(PluginField("bev_w", nullptr, PluginFieldType::kINT32, 1));
+    attr_.emplace_back(PluginField("n", nullptr, PluginFieldType::kINT32, 1));
+
 
     fc_.nbFields = attr_.size();
     fc_.fields   = attr_.data();
@@ -253,6 +273,7 @@ IPluginV2DynamicExt *BEVPoolPluginCreator::createPlugin(const char *name,
 
     int bev_h = -1;
     int bev_w = -1;
+    int n = -1;
 
     for (int i = 0; i < fc->nbFields; ++i){
         if(std::string(fc->fields[i].name) == std::string("bev_h")){
@@ -261,8 +282,11 @@ IPluginV2DynamicExt *BEVPoolPluginCreator::createPlugin(const char *name,
         else if(std::string(fc->fields[i].name) == std::string("bev_w")){
             bev_w = *reinterpret_cast<const int *>(fc->fields[i].data);
         }
+        else if(std::string(fc->fields[i].name) == std::string("n")){
+            n = *reinterpret_cast<const int *>(fc->fields[i].data);
+        }
     }
-    BEVPoolPlugin *pObj = new BEVPoolPlugin(name, bev_h, bev_w);
+    BEVPoolPlugin *pObj = new BEVPoolPlugin(name, bev_h, bev_w, n);
     pObj->setPluginNamespace(namespace_.c_str());
     return pObj;
 }
