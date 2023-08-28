@@ -18,25 +18,6 @@ using namespace nvinfer1;
 static Logger     gLogger(ILogger::Severity::kERROR);
 
 
-inline void loadLibrary(const std::string &path)
-{
-#ifdef _MSC_VER
-    void *handle = LoadLibrary(path.c_str());
-#else
-    int32_t flags {RTLD_LAZY};
-    void *  handle = dlopen(path.c_str(), flags);
-#endif
-    if (handle == nullptr)
-    {
-#ifdef _MSC_VER
-        std::cout << "Could not load plugin library: " << path << std::endl;
-#else
-        std::cout << "Could not load plugin library: " << path << ", due to: " << dlerror() << std::endl;
-#endif
-    }
-}
-
-
 int main(int argc, char * argv[]){
 
     if(argc != 3){
