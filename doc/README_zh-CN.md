@@ -14,7 +14,7 @@
 - 实现了TensorRT的plugin: AlignBEV_plugin, Preprocess_plugin, BEVPool_plugin, GatherBEV_plugin
 - 长时序（long-term）模型的推理
 - BEV-Depth模型的推理
-- 在NVIDIA A4000上，BEVDet-r50-lt-depth模型中，TRT FP32模型推理速度比PyTorch FP32模型**快2.38倍**, TRT FP16模型比PyTorch FP32模型**快5.21倍**
+- 在NVIDIA A4000上，BEVDet-r50-lt-depth模型中，TRT FP16模型比PyTorch FP32模型**快6.24倍**
 - 在**Jetson AGX Orin**上进行推理，FP16模型推理时间在**29m**s左右，实现了实时化
 - 实现了Dataloader，可以在nuScenes数据集上进行测试
 - 微调了模型，解决了模型对输入resize采样敏感导致mAP与NDS下降的问题
@@ -34,18 +34,20 @@
 ## Results && Speed
 ## Inference Speed
  所有的时间单位都是毫秒(ms), 默认使用Nearest插值
-||Preprocess| TRT-Engine |Postprocess|mean Total | 
-|---|---|---|---|---|---|---|---|
-<!-- |NVIDIA A4000 FP32|0.478|16.559|0.151|0.899|6.848 |0.558|25.534| -->
-|NVIDIA A4000 PyTorch FP32|~|~|86.236|
-|NVIDIA A4000 FP16| |11.38|0.53|11.91|
+
+|| TRT-Engine |Postprocess|mean Total |   
+|---|---|---|---|
+|NVIDIA A4000 PyTorch FP32| — |—|86.24|  
+|NVIDIA A4000 FP16|11.38|0.53|11.91|  
+
+
 <!-- |NVIDIA A4000 Int8|0.467|3.929 |0.143|0.885|1.771|0.631|7.847|  -->
 <!-- |Jetson AGX Orin FP32|2.800|38.09|0.620|2.018|11.893|1.065|55.104| -->
 <!-- |Jetson AGX Orin FP16|2.816|17.025|0.571|2.111|5.747 |0.919|29.189| -->
 <!-- |Jetson AGX Orin Int8|2.924|10.340|0.596|1.861|4.004|0.982|20.959| -->
 
 
-*注：模块的推理时间参考的某一帧的时间，而总时间计算200帧的平均时间*
+<!-- *注：模块的推理时间参考的某一帧的时间，而总时间计算200帧的平均时间* -->
 
 <!-- ## Results
 |Model   |Description       |mAP   |NDS    |Infer time|
@@ -107,15 +109,20 @@ data_infos文件夹，在这里下载 [Google drive](https://drive.google.com/fi
 - libjpeg
   
 ## Compile && Run
-请使用本项目提供的ONNX文件，根据脚本自行生成trt engine:
+<!-- 请使用本项目提供的ONNX文件，根据脚本自行生成trt engine:
 ```shell
 python tools/export_engine.py cfgs/bevdet_lt_depth.yaml model/img_stage_lt_d.onnx model/bev_stage_lt_d.engine --postfix="_lt_d_fp16" --fp16=True
 ```
-ONNX文件，在此处下载[Baidu Netdisk](https://pan.baidu.com/s/1zkfNdFNilkq4FikMCet5PQ?pwd=bp3z)或者[Google Drive](https://drive.google.com/drive/folders/1jSGT0PhKOmW3fibp6fvlJ7EY6mIBVv6i?usp=drive_link)
+ONNX文件，在此处下载[Baidu Netdisk](https://pan.baidu.com/s/1zkfNdFNilkq4FikMCet5PQ?pwd=bp3z)或者[Google Drive](https://drive.google.com/drive/folders/1jSGT0PhKOmW3fibp6fvlJ7EY6mIBVv6i?usp=drive_link) -->
 
+根据ONNX文件生成TRT Engine:
 ```shell
 mkdir build && cd build
 cmake .. && make
+./export model.onnx model.engine
+```
+进行推理
+```
 ./bevdemo ../configure.yaml
 ```
 

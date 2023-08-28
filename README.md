@@ -12,9 +12,10 @@ This project is a TensorRT implementation for BEVDet inference, written in C++. 
 
 
 This project implements the following:
+- **TensorRT-Plugins** : AlignBEV_plugin, Preprocess_plugin, BEVPool_plugin, GatherBEV_plugin
 - Long-term model
-- Depth model
-- On the NVIDIA A4000, the BEVDet-r50-lt-depth model shows a __2.38x faster__ inference speed for TRT FP32 compared to PyTorch FP32, and a __5.21x faster__ inference speed for TRT FP16 compared to PyTorch FP32
+- BEV-Depth model
+- On the NVIDIA A4000, the BEVDet-r50-lt-depth model shows a __6.24x faster__ inference speed for TRT FP16 compared to PyTorch FP32
 - On the __Jetson AGX Orin__, the FP16 model inference time is around __29 ms__, achieving real-time performance
 - A Dataloader for the nuScenes dataset and can be used to test on the dataset
 - Fine-tuned the model to solve the problem that the model is sensitive to input resize sampling, which leads to the decline of mAP and NDS
@@ -39,17 +40,12 @@ The following parts need to be implemented:
 ## Inference Speed
 All time units are in milliseconds (ms), and Nearest interpolation is used by default.
 
-||Preprocess|Image stage|BEV pool|Align Feature|BEV stage|Postprocess|mean Total | 
-|---|---|---|---|---|---|---|---|
-|NVIDIA A4000 FP32|0.478|16.559|0.151|0.899|6.848 |0.558|25.534|
-|NVIDIA A4000 FP16|0.512|8.627 |0.168|0.925|2.966 |0.619|13.817|
-|NVIDIA A4000 Int8|0.467|3.929 |0.143|0.885|1.771|0.631|7.847| 
-|Jetson AGX Orin FP32|2.800|38.09|0.620|2.018|11.893|1.065|55.104|
-|Jetson AGX Orin FP16|2.816|17.025|0.571|2.111|5.747 |0.919|29.189|
-|Jetson AGX Orin Int8|2.924|10.340|0.596|1.861|4.004|0.982|20.959|
+|| TRT-Engine |Postprocess|mean Total |   
+|---|---|---|---|
+|NVIDIA A4000 PyTorch FP32| — |—|86.24|  
+|NVIDIA A4000 FP16|11.38|0.53|11.91|  
 
-
-*Note: The inference time of the module refers to the time of a frame, while the total time is calculated as the average time of 200 frames.*
+<!-- *Note: The inference time of the module refers to the time of a frame, while the total time is calculated as the average time of 200 frames.*
 
 ## Results
 |Model   |Description       |mAP   |NDS    |Infer time|
@@ -69,7 +65,7 @@ All time units are in milliseconds (ms), and Nearest interpolation is used by de
 2. Some networks are very sensitive to input, and the Pytorch models use PIL's resize function with default Bicubic interpolation for preprocessing. During inference, neither OpenCV's Bicubic interpolation nor our own implementation of Bicubic interpolation can achieve the accuracy of Pytorch. We speculate that the network may be slightly overfitting or learning certain features of the sampler, which leads to a decrease in accuracy when the interpolation method is changed. Here, using Python preprocessing as input, it can be seen that the accuracy of the TRT model does not decrease in some cases
 3. If as stated in point 2, we use our own implementation of Bicubic interpolation, it cannot achieve the performance of Python preprocessing.
 4. Nearest is 20 times slower than Bicubic and will be used as the default sampling method.
-5. Fine-tune the network, and the preprocess uses the resize based on Nearest sampling implemented in C++. After fine-tuning, the network is adapted to Nearest sampling
+5. Fine-tune the network, and the preprocess uses the resize based on Nearest sampling implemented in C++. After fine-tuning, the network is adapted to Nearest sampling -->
 
 ## DataSet
 The Project provides a test sample that can also be used for inference on the nuScenes dataset. When testing on the nuScenes dataset, you need to use the data_infos folder provided by this project. The data folder should have the following structure:
@@ -110,15 +106,17 @@ For Jetson AGX Orin
 
   
 ## Compile && Run
-Please use the ONNX file provided by this project to generate the TRT engine based on the script:
-```shell
-python tools/export_engine.py cfgs/bevdet_lt_depth.yaml model/img_stage_lt_d.onnx model/bev_stage_lt_d.engine --postfix="_lt_d_fp16" --fp16=True
-```
-ONNX files, cound be downloaded from [Baidu Netdisk](https://pan.baidu.com/s/1zkfNdFNilkq4FikMCet5PQ?pwd=bp3z) or [Google Drive](https://drive.google.com/drive/folders/1jSGT0PhKOmW3fibp6fvlJ7EY6mIBVv6i?usp=drive_link)
-
+Use the ONNX file to export the TRT engine based on the script:
 ```shell
 mkdir build && cd build
 cmake .. && make
+./export model.onnx model.engine
+```
+<!-- ONNX files, cound be downloaded from [Baidu Netdisk](https://pan.baidu.com/s/1zkfNdFNilkq4FikMCet5PQ?pwd=bp3z) or [Google Drive](https://drive.google.com/drive/folders/1jSGT0PhKOmW3fibp6fvlJ7EY6mIBVv6i?usp=drive_link) -->
+
+Inference
+
+```shell
 ./bevdemo ../configure.yaml
 ```
 
