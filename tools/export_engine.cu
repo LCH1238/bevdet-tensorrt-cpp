@@ -18,6 +18,25 @@ using namespace nvinfer1;
 static Logger     gLogger(ILogger::Severity::kERROR);
 
 
+inline void loadLibrary(const std::string &path)
+{
+#ifdef _MSC_VER
+    void *handle = LoadLibrary(path.c_str());
+#else
+    int32_t flags {RTLD_LAZY};
+    void *  handle = dlopen(path.c_str(), flags);
+#endif
+    if (handle == nullptr)
+    {
+#ifdef _MSC_VER
+        std::cout << "Could not load plugin library: " << path << std::endl;
+#else
+        std::cout << "Could not load plugin library: " << path << ", due to: " << dlerror() << std::endl;
+#endif
+    }
+}
+
+
 int main(int argc, char * argv[]){
 
     if(argc != 3){
@@ -29,8 +48,22 @@ int main(int argc, char * argv[]){
 
     CHECK_CUDA(cudaSetDevice(0));
     ICudaEngine *engine = nullptr;
+    std::vector<Dims32> min_shapes{
+        {4, {6, 3, 900, 400}},
+        {1, {3}},
+        {1, {3}},
+        {3, {1, 6, 27}},
+        {1, {200000}},
+        {1, {200000}},
+        {1, {200000}},
+        {1, {8000}},
+        {1, {8000}},
+        {5, {1, 8, 80, 128, 128}},
+        {3, {1, 8, 6}},
+        {2, {1, 1}}
+    };
 
-    std::vector<Dims32> shapes{
+    std::vector<Dims32> opt_shapes{
         {4, {6, 3, 900, 400}},
         {1, {3}},
         {1, {3}},
@@ -44,6 +77,24 @@ int main(int argc, char * argv[]){
         {3, {1, 8, 6}},
         {2, {1, 1}}
     };
+
+
+    std::vector<Dims32> max_shapes{
+        {4, {6, 3, 900, 400}},
+        {1, {3}},
+        {1, {3}},
+        {3, {1, 6, 27}},
+        {1, {370000}},
+        {1, {370000}},
+        {1, {370000}},
+        {1, {14000}},
+        {1, {14000}},
+        {5, {1, 8, 80, 128, 128}},
+        {3, {1, 8, 6}},
+        {2, {1, 1}}
+    };
+
+
     if (access(trtFile.c_str(), F_OK) == 0)
     {
         std::ifstream engineFile(trtFile, std::ios::binary);
@@ -98,11 +149,11 @@ int main(int argc, char * argv[]){
         }
         std::cout << std::string("Succeeded parsing .onnx file!") << std::endl;
 
-        for(size_t i = 0; i < shapes.size(); i++){
+        for(size_t i = 0; i < min_shapes.size(); i++){
             ITensor *it = network->getInput(i);
-            profile->setDimensions(it->getName(), OptProfileSelector::kMIN, shapes[i]);
-            profile->setDimensions(it->getName(), OptProfileSelector::kOPT, shapes[i]);
-            profile->setDimensions(it->getName(), OptProfileSelector::kMAX, shapes[i]);
+            profile->setDimensions(it->getName(), OptProfileSelector::kMIN, min_shapes[i]);
+            profile->setDimensions(it->getName(), OptProfileSelector::kOPT, opt_shapes[i]);
+            profile->setDimensions(it->getName(), OptProfileSelector::kMAX, max_shapes[i]);
         }
         config->addOptimizationProfile(profile);
 
@@ -139,8 +190,8 @@ int main(int argc, char * argv[]){
     }
     IExecutionContext *context = engine->createExecutionContext();
 
-    for(size_t i = 0; i < shapes.size(); i++){
-        context->setBindingDimensions(i, shapes[i]);
+    for(size_t i = 0; i < min_shapes.size(); i++){
+        context->setBindingDimensions(i, min_shapes[i]);
     }
 
     std::cout << std::string("Binding all? ") << std::string(context->allInputDimensionsSpecified() ? "Yes" : "No") << std::endl;
