@@ -39,6 +39,11 @@
 |---|---|---|---|
 |NVIDIA A4000 PyTorch FP32| — |—|86.24|  
 |NVIDIA A4000 FP16|11.38|0.53|11.91|  
+|Jetson AGX Orin FP16|26.60|0.99|27.60|
+
+TRT-Engine  : 26.60630 ms
+Postprocess : 0.99798 ms
+Inference   : 27.60428 ms
 
 
 <!-- |NVIDIA A4000 Int8|0.467|3.929 |0.143|0.885|1.771|0.631|7.847|  -->

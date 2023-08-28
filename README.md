@@ -44,6 +44,8 @@ All time units are in milliseconds (ms), and Nearest interpolation is used by de
 |---|---|---|---|
 |NVIDIA A4000 PyTorch FP32| — |—|86.24|  
 |NVIDIA A4000 FP16|11.38|0.53|11.91|  
+|Jetson AGX Orin FP16|26.60|0.99|27.60|
+
 
 <!-- *Note: The inference time of the module refers to the time of a frame, while the total time is calculated as the average time of 200 frames.*
 
