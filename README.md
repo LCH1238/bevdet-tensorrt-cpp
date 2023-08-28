@@ -16,7 +16,7 @@ This project implements the following:
 - Long-term model
 - BEV-Depth model
 - On the NVIDIA A4000, the BEVDet-r50-lt-depth model shows a __6.24x faster__ inference speed for TRT FP16 compared to PyTorch FP32
-- On the __Jetson AGX Orin__, the FP16 model inference time is around __29 ms__, achieving real-time performance
+- On the __Jetson AGX Orin__, the FP16 model inference time is around __27 ms__, achieving real-time performance
 - A Dataloader for the nuScenes dataset and can be used to test on the dataset
 - Fine-tuned the model to solve the problem that the model is sensitive to input resize sampling, which leads to the decline of mAP and NDS
 - An Attempt at Int8 Quantization

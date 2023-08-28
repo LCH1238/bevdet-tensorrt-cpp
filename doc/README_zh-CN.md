@@ -15,7 +15,7 @@
 - 长时序（long-term）模型的推理
 - BEV-Depth模型的推理
 - 在NVIDIA A4000上，BEVDet-r50-lt-depth模型中，TRT FP16模型比PyTorch FP32模型**快6.24倍**
-- 在**Jetson AGX Orin**上进行推理，FP16模型推理时间在**29m**s左右，实现了实时化
+- 在**Jetson AGX Orin**上进行推理，FP16模型推理时间在**27m**s左右，实现了实时化
 - 实现了Dataloader，可以在nuScenes数据集上进行测试
 - 微调了模型，解决了模型对输入resize采样敏感导致mAP与NDS下降的问题
 - Int8的量化的尝试
