@@ -18,51 +18,19 @@
 
 #include "NvInfer.h"
 
-class Logger : public nvinfer1::ILogger {
- public:
-  explicit Logger(Severity severity = Severity::kWARNING) : reportable_severity(severity){}
-
-  void log(Severity severity, const char *msg) noexcept override {
-    // suppress messages with severity enum value greater than the reportable
-    if (severity > reportable_severity) return;
-    switch (severity) {
-      case Severity::kINTERNAL_ERROR:
-        std::cerr << "INTERNAL_ERROR: ";
-        break;
-      case Severity::kERROR:
-        std::cerr << "ERROR: ";
-        break;
-      case Severity::kWARNING:
-        std::cerr << "WARNING: ";
-        break;
-      case Severity::kINFO:
-        std::cerr << "INFO: ";
-        break;
-      default:
-        std::cerr << "UNKNOWN: ";
-        break;
-    }
-    std::cerr << msg << std::endl;
-  }
-
-  Severity reportable_severity;
-};
-
 
 class adjFrame{
 public:
     adjFrame(){}
     adjFrame(int _n,
-             int _map_size, 
-             int _bev_channel) : 
+             size_t _buf_size) : 
              n(_n), 
-             map_size(_map_size), 
-             bev_channel(_bev_channel),
+             buf_size(_buf_size),
              scenes_token(_n),
              ego2global_rot(_n),
              ego2global_trans(_n) {
-        CHECK_CUDA(cudaMalloc((void**)&adj_buffer, _n * _map_size * _bev_channel * sizeof(float)));
-        CHECK_CUDA(cudaMemset(adj_buffer, 0, _n * _map_size * _bev_channel * sizeof(float)));
+        CHECK_CUDA(cudaMalloc((void**)&adj_buffer, _n * _buf_size));
+        CHECK_CUDA(cudaMemset(adj_buffer, 0, _n * _buf_size));
         last = 0;
         buffer_num = 0;
         init = false;
@@ -74,7 +42,7 @@ public:
             trans = Eigen::Translation3f(0.f, 0.f, 0.f);
         }
 
-    }  
+    }
     const std::string& lastScenesToken() const{
         return scenes_token[last];
     }
@@ -85,15 +53,15 @@ public:
         init = false;
     }
 
-    void saveFrameBuffer(const float* curr_buffer, 
+    void saveFrameBuffer(const void* curr_buffer, 
                         const std::string &curr_token, 
                         const Eigen::Quaternion<float> &_ego2global_rot,
                         const Eigen::Translation3f &_ego2global_trans){
         int iters = init ? 1 : n;
         while(iters--){
           last = (last + 1) % n;
-          CHECK_CUDA(cudaMemcpy(adj_buffer + last * map_size * bev_channel, curr_buffer,
-                          map_size * bev_channel * sizeof(float), cudaMemcpyDeviceToDevice));
+          CHECK_CUDA(cudaMemcpy((char*)adj_buffer + last * buf_size, curr_buffer,
+                          buf_size, cudaMemcpyDeviceToDevice));
           scenes_token[last] = curr_token;
           ego2global_rot[last] = _ego2global_rot;
           ego2global_trans[last] = _ego2global_trans;
@@ -105,9 +73,9 @@ public:
         return static_cast<int>(idx < buffer_num);
     }
 
-    const float* getFrameBuffer(int idx){
+    const void* getFrameBuffer(int idx){
         idx = (-idx + last + n) % n;
-        return adj_buffer + idx * map_size * bev_channel;
+        return (char*)adj_buffer + idx * buf_size;
     }
     void getEgo2Global(int idx, 
                     Eigen::Quaternion<float> &adj_ego2global_rot, 
@@ -123,8 +91,7 @@ public:
 
 private:
     int n;
-    int map_size;
-    int bev_channel;
+    size_t buf_size;
 
     int last;
     int buffer_num;
@@ -134,7 +101,7 @@ private:
     std::vector<Eigen::Quaternion<float>> ego2global_rot;
     std::vector<Eigen::Translation3f> ego2global_trans;
 
-    float* adj_buffer;
+    void* adj_buffer;
 };
 
 class BEVDet{
@@ -245,6 +212,7 @@ private:
     Eigen::Matrix3f post_rot;
     Eigen::Translation3f post_trans;
 
+    std::vector<size_t> trt_buffer_sizes;
     void** trt_buffer_dev;
     float* cam_params_host;
     void** post_buffer;
@@ -265,12 +233,7 @@ private:
     std::unique_ptr<PostprocessGPU> postprocess_ptr;
     std::unique_ptr<adjFrame> adj_frame_ptr;
 
-    size_t adj_cnt = 0;
-
 };
-
-
-__inline__ size_t dataTypeToSize(nvinfer1::DataType dataType);
 
 
 #endif

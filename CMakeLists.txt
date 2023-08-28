@@ -100,6 +100,11 @@ cuda_add_executable(bevdemo
     src/data.cpp
     src/cpu_jpegdecoder.cpp
     src/nvjpegdecoder.cpp
+
+    src/preprocess_plugin.cu
+    src/bevpool_plugin.cu
+    src/alignbev_plugin.cu
+    src/gatherbev_plugin.cu
 )
 
 target_link_libraries(bevdemo 
@@ -109,15 +114,21 @@ target_link_libraries(bevdemo
 )
 
 
-cuda_add_library(preprocess_plugin SHARED src/preprocess_plugin.cu)
-cuda_add_library(bevpool_plugin SHARED src/bevpool_plugin.cu)
-cuda_add_library(alignbev_plugin SHARED src/alignbev_plugin.cu)
-cuda_add_library(gatherbev_plugin SHARED src/gatherbev_plugin.cu)
+cuda_add_executable(export 
+  tools/export_engine.cu
+  src/preprocess_plugin.cu
+  src/bevpool_plugin.cu
+  src/alignbev_plugin.cu
+  src/gatherbev_plugin.cu
+)
 
+target_link_libraries(export 
+  libnvinfer.so
+  libnvonnxparser.so
+  libz.so
+)
 
-
-
-# cuda_add_library(test_plugin SHARED src/test_plugin.cu)
-
-# target_link_libraries(test_plugin nvinfer nvinfer_plugin)
-# target_link_libraries(test_plugin cuda cublas cudart cudnn)
+# cuda_add_library(preprocess_plugin SHARED src/preprocess_plugin.cu)
+# cuda_add_library(bevpool_plugin SHARED src/bevpool_plugin.cu)
+# cuda_add_library(alignbev_plugin SHARED src/alignbev_plugin.cu)
+# cuda_add_library(gatherbev_plugin SHARED src/gatherbev_plugin.cu)

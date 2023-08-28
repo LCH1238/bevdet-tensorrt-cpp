@@ -24,8 +24,8 @@
 
 namespace
 {
-static const char *PLUGIN_NAME {"GatherBEV"};
-static const char *PLUGIN_VERSION {"1"};
+static const char *GATHERBEV_PLUGIN_NAME {"GatherBEV"};
+static const char *GATHERBEV_PLUGIN_VERSION {"1"};
 } // namespace
 
 namespace nvinfer1

@@ -24,8 +24,8 @@
 
 namespace
 {
-static const char *PLUGIN_NAME {"Preprocess"};
-static const char *PLUGIN_VERSION {"1"};
+static const char *PRE_PLUGIN_NAME {"Preprocess"};
+static const char *PRE_PLUGIN_VERSION {"1"};
 } // namespace
 
 namespace nvinfer1

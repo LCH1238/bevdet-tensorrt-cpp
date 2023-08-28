@@ -26,10 +26,12 @@ ImgStageEngine: ../model/img_stage_lt_d_fp16_ftn.engine
 BEVStageEngine: ../model/bev_stage_lt_d_fp16_ftn.engine
 
 # EngineFile: ../test_plugin/export_engine/bevdet_one_test2.engine
-EngineFile: ../test_plugin/export_engine2/bevdet_vfinal_fp16_v3.engine
+# EngineFile: ../test_plugin/export_engine2/bevdet_vfinal_fp16_v8.engine
+# EngineFile: ../test_plugin/export_engine2/bevdet_vfinal.engine
+EngineFile: ../test_plugin/export_engine2/bevdet_vfinal_fp16_v21.engine
 
 
-OutputDir: ../output/one_engine_test
+OutputDir: ../output/one_engine_test_fp16
 
 LoadDim: 5
 UseDim: 4

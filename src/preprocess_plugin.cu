@@ -61,9 +61,9 @@ __global__ void preprocess_kernel(const uint8_t * src_dev,
         int d2 = k * dst_img_step + 1 * dst_img_step / 3 + i * dst_row_step + j;
         int d3 = k * dst_img_step + 2 * dst_img_step / 3 + i * dst_row_step + j;
 
-		dst_dev[d1] = static_cast<T>((static_cast<float>(src_dev[s1]) - mean[0]) / std[0]);
-		dst_dev[d2] = static_cast<T>((static_cast<float>(src_dev[s2]) - mean[1]) / std[1]);
-		dst_dev[d3] = static_cast<T>((static_cast<float>(src_dev[s3]) - mean[2]) / std[2]);
+		dst_dev[d1] = (static_cast<T>(src_dev[s1]) - static_cast<T>(mean[0])) / static_cast<T>(std[0]);
+		dst_dev[d2] = (static_cast<T>(src_dev[s2]) - static_cast<T>(mean[1])) / static_cast<T>(std[1]);
+		dst_dev[d3] = (static_cast<T>(src_dev[s3]) - static_cast<T>(mean[2])) / static_cast<T>(std[2]);
         
         // printf("%.3f %.3f \n", mean[0], static_cast<T>(src_dev[s1]));
 
@@ -116,7 +116,7 @@ int32_t PreprocessPlugin::getNbOutputs() const noexcept {
  
 DataType PreprocessPlugin::getOutputDataType(int32_t index, DataType const *inputTypes, 
                                                                 int32_t nbInputs) const noexcept {
-    return inputTypes[1];  // 与mean一致
+    return DataType::kHALF;
 }
 
 DimsExprs PreprocessPlugin::getOutputDimensions(int32_t outputIndex, const DimsExprs *inputs, 
@@ -147,19 +147,18 @@ bool PreprocessPlugin::supportsFormatCombination(int32_t pos, const PluginTensor
                 inOut[0].format == TensorFormat::kLINEAR;
         break;
     case 1: // mean
-        res = (inOut[1].type == DataType::kFLOAT || inOut[1].type == DataType::kHALF) &&
+        res = (inOut[1].type == DataType::kFLOAT) &&
                 inOut[1].format == TensorFormat::kLINEAR;
         break;
     case 2: // std
-        res = (inOut[2].type == DataType::kFLOAT || inOut[2].type == DataType::kHALF) &&
+        res = (inOut[2].type == DataType::kFLOAT) &&
                 inOut[2].format == TensorFormat::kLINEAR;
         break;
     case 3: // 输出 img tensor
         // res = (inOut[3].type == DataType::kFLOAT || inOut[3].type == DataType::kHALF) && 
         //         inOut[3].format == inOut[0].format;
 
-        res = (inOut[3].type == DataType::kFLOAT) && 
-                inOut[3].format == inOut[0].format;
+        res = inOut[3].type == DataType::kHALF && inOut[3].format == inOut[0].format;
         break;
     default: 
         res = false;
@@ -202,7 +201,6 @@ int32_t PreprocessPlugin::enqueue(const PluginTensorDesc *inputDesc, const Plugi
     switch (int(outputDesc[0].type))
     {
     case int(DataType::kFLOAT):
-        printf("pre float\n");
         preprocess_kernel<<<grid, block, 0, stream>>>(
                                                 reinterpret_cast<const uint8_t *>(inputs[0]),
                                                 reinterpret_cast<float *>(outputs[0]),
@@ -222,26 +220,25 @@ int32_t PreprocessPlugin::enqueue(const PluginTensorDesc *inputDesc, const Plugi
                                                 dst_img_w,
                                                 n_img);
         break;
-    // case int(DataType::kHALF):
-    //     printf("pre half\n");
-    //     preprocess_kernel<<<grid, block, 0, stream>>>(
-    //                                             reinterpret_cast<const uint8_t *>(inputs[0]),
-    //                                             reinterpret_cast<__half *>(outputs[0]),
-    //                                             src_row_step, 
-    //                                             dst_row_step, 
-    //                                             src_img_step,
-    //                                             dst_img_step, 
-    //                                             src_img_h, 
-    //                                             src_img_w, 
-    //                                             m_.resize_radio,
-    //                                             m_.resize_radio, 
-    //                                             offset_h, 
-    //                                             offset_w, 
-    //                                             reinterpret_cast<const float *>(inputs[1]), 
-    //                                             reinterpret_cast<const float *>(inputs[2]),
-    //                                             dst_img_h, 
-    //                                             dst_img_w,
-    //                                             n_img);
+    case int(DataType::kHALF):
+        preprocess_kernel<<<grid, block, 0, stream>>>(
+                                                reinterpret_cast<const uint8_t *>(inputs[0]),
+                                                reinterpret_cast<__half *>(outputs[0]),
+                                                src_row_step, 
+                                                dst_row_step, 
+                                                src_img_step,
+                                                dst_img_step, 
+                                                src_img_h, 
+                                                src_img_w, 
+                                                m_.resize_radio,
+                                                m_.resize_radio, 
+                                                offset_h, 
+                                                offset_w, 
+                                                reinterpret_cast<const float *>(inputs[1]), 
+                                                reinterpret_cast<const float *>(inputs[2]),
+                                                dst_img_h, 
+                                                dst_img_w,
+                                                n_img);
 
         break;
     default: // should NOT be here
@@ -282,11 +279,11 @@ const char *PreprocessPlugin::getPluginNamespace() const noexcept {
 }
 
 const char *PreprocessPlugin::getPluginType() const noexcept {
-    return PLUGIN_NAME;
+    return PRE_PLUGIN_NAME;
 }
 
 const char *PreprocessPlugin::getPluginVersion() const noexcept {
-    return PLUGIN_VERSION;
+    return PRE_PLUGIN_VERSION;
 }
 
 void PreprocessPlugin::attachToContext(cudnnContext *contextCudnn, cublasContext *contextCublas, 
@@ -359,11 +356,11 @@ const char *PreprocessPluginCreator::getPluginNamespace() const noexcept {
 }
 
 const char *PreprocessPluginCreator::getPluginName() const noexcept {
-    return PLUGIN_NAME;
+    return PRE_PLUGIN_NAME;
 }
 
 const char *PreprocessPluginCreator::getPluginVersion() const noexcept {
-    return PLUGIN_VERSION;
+    return PRE_PLUGIN_VERSION;
 }
 
 const PluginFieldCollection *PreprocessPluginCreator::getFieldNames() noexcept {

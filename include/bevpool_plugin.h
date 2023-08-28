@@ -24,8 +24,8 @@
 
 namespace
 {
-static const char *PLUGIN_NAME {"BEVPool"};
-static const char *PLUGIN_VERSION {"1"};
+static const char *BEVPOOL_PLUGIN_NAME {"BEVPool"};
+static const char *BEVPOOL_PLUGIN_VERSION {"1"};
 } // namespace
 
 namespace nvinfer1

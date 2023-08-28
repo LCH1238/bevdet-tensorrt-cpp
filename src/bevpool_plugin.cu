@@ -29,19 +29,19 @@
 
 // out[0]   bevfeat          b x c x h x w    
 
-template<typename T>
+template<typename T1, typename T2>
 __global__ void bev_pool_v2_kernel(int channel, 
                                     int n_intervals,
                                     int map_size,
                                     int img_size,
-                                    const T *__restrict__ depth,
-                                    const T *__restrict__ feat,
+                                    const T1 *__restrict__ depth,
+                                    const T1 *__restrict__ feat,
                                     const int *__restrict__ ranks_depth,
                                     const int *__restrict__ ranks_feat,
                                     const int *__restrict__ ranks_bev,
                                     const int *__restrict__ interval_starts,
                                     const int *__restrict__ interval_lengths,
-                                    T * __restrict__ out) {
+                                    T2 * __restrict__ out) {
     CUDA_1D_KERNEL_LOOP(idx, n_intervals * channel){
         int index = idx / channel;    // bev grid index
         int curr_c = idx % channel;    // channel index
@@ -51,14 +51,14 @@ __global__ void bev_pool_v2_kernel(int channel,
         int curr_step = curr_c * img_size;
         int chan_step = channel * img_size;
 
-        T sum = 0;
+        T2 sum = 0;
 
         int feat_offset = 0;
         for(int i = 0; i < interval_length; i++){
             feat_offset = ranks_feat[interval_start + i] / img_size * chan_step + 
                           curr_step + ranks_feat[interval_start + i] % img_size;
   
-            sum += feat[feat_offset] * depth[ranks_depth[interval_start + i]];
+            sum += static_cast<T2>(feat[feat_offset]) * static_cast<T2>(depth[ranks_depth[interval_start + i]]);
         }
         out[curr_c * map_size + ranks_bev[interval_start]] = sum;
     }
@@ -94,7 +94,7 @@ int32_t BEVPoolPlugin::getNbOutputs() const noexcept {
  
 DataType BEVPoolPlugin::getOutputDataType(int32_t index, DataType const *inputTypes, 
                                                                 int32_t nbInputs) const noexcept {
-    return inputTypes[0];  // 与depth一致
+    return DataType::kHALF;
 }
 
 DimsExprs BEVPoolPlugin::getOutputDimensions(int32_t outputIndex, const DimsExprs *inputs, 
@@ -102,11 +102,11 @@ DimsExprs BEVPoolPlugin::getOutputDimensions(int32_t outputIndex, const DimsExpr
     // input[0] depth            b*n x d x h x w
     // input[1] feat             b*n x c x h x w
 
-    // input[2] ranks_depth      1 x m
-    // input[3] ranks_feat       1 x m
-    // input[4] ranks_bev        1 x m
-    // input[5] interval_starts  1 x k
-    // input[6] interval_lengths 1 x k
+    // input[2] ranks_depth      m
+    // input[3] ranks_feat       m
+    // input[4] ranks_bev        m
+    // input[5] interval_starts  k
+    // input[6] interval_lengths k
 
     // out[0]   bevfeat          b x c x h x w    
 
@@ -117,14 +117,21 @@ DimsExprs BEVPoolPlugin::getOutputDimensions(int32_t outputIndex, const DimsExpr
     ret.d[2] = exprBuilder.constant(m_.bev_h);
     ret.d[3] = exprBuilder.constant(m_.bev_w);
     
-    return ret;  // FIXME
+    return ret; 
 }
 
 bool BEVPoolPlugin::supportsFormatCombination(int32_t pos, const PluginTensorDesc *inOut,
                                                     int32_t nbInputs, int32_t nbOutputs) noexcept {
-    // depth       feat        out
-    if(pos == 0 || pos == 1 || pos == 7){
-        return (inOut[pos].type == DataType::kFLOAT || inOut[pos].type == DataType::kFLOAT) &&
+    // depth
+    if(pos == 0){
+        return (inOut[pos].type == DataType::kFLOAT || inOut[pos].type == DataType::kHALF) &&
+                 inOut[pos].format == TensorFormat::kLINEAR;
+    }
+    else if(pos == 1){ // feat
+        return inOut[0].type == inOut[1].type && inOut[pos].format == TensorFormat::kLINEAR;
+    }
+    else if(pos == 7){ // out
+        return (inOut[pos].type == DataType::kFLOAT || inOut[pos].type == DataType::kHALF) &&
                 inOut[pos].format == TensorFormat::kLINEAR;
     }
     else{
@@ -147,11 +154,11 @@ int32_t BEVPoolPlugin::enqueue(const PluginTensorDesc *inputDesc, const PluginTe
     const void *const *inputs, void *const *outputs, void *workspace, cudaStream_t stream) noexcept {
     // input[0] == depth            b*n x d x h x w
     // input[1] == feat             b*n x c x h x w
-    // input[2] == ranks_depth      1 x m
-    // input[3] == ranks_feat       1 x m
-    // input[4] == ranks_bev        1 x m
-    // input[5] == interval_starts  1 x k
-    // input[6] == interval_lengths 1 x k
+    // input[2] == ranks_depth      m
+    // input[3] == ranks_feat       m
+    // input[4] == ranks_bev        m
+    // input[5] == interval_starts  k
+    // input[6] == interval_lengths k
 
     int channel = inputDesc[1].dims.d[1];
     int n_intervals = inputDesc[5].dims.d[0];
@@ -161,38 +168,75 @@ int32_t BEVPoolPlugin::enqueue(const PluginTensorDesc *inputDesc, const PluginTe
     dim3 grid(GET_BLOCKS(n_intervals * channel));
     dim3 block(NUM_THREADS);
 
+    // printf("BEVPool input depth %s\n", dataTypeToString(inputDesc[0].type).c_str());
+    // printf("BEVPool input  feat %s\n", dataTypeToString(inputDesc[1].type).c_str());
+    // printf("BEVPool output feat %s\n", dataTypeToString(outputDesc[0].type).c_str());
+
     switch (int(outputDesc[0].type))
     {
     case int(DataType::kFLOAT):
-        bev_pool_v2_kernel<<<grid, block, 0, stream>>>(
-                                                    channel, 
-                                                    n_intervals,
-                                                    map_size,
-                                                    img_size,
-                                                    reinterpret_cast<const float *>(inputs[0]),
-                                                    reinterpret_cast<const float *>(inputs[1]),
-                                                    reinterpret_cast<const int *>(inputs[2]),
-                                                    reinterpret_cast<const int *>(inputs[3]),
-                                                    reinterpret_cast<const int *>(inputs[4]),
-                                                    reinterpret_cast<const int *>(inputs[5]),
-                                                    reinterpret_cast<const int *>(inputs[6]),
-                                                    reinterpret_cast<float *>(outputs[0]));
-        printf("bevpool fp32\n");
+        if(inputDesc[0].type == DataType::kFLOAT){
+            bev_pool_v2_kernel<float, float><<<grid, block, 0, stream>>>(
+                                                        channel, 
+                                                        n_intervals,
+                                                        map_size,
+                                                        img_size,
+                                                        reinterpret_cast<const float *>(inputs[0]),
+                                                        reinterpret_cast<const float *>(inputs[1]),
+                                                        reinterpret_cast<const int *>(inputs[2]),
+                                                        reinterpret_cast<const int *>(inputs[3]),
+                                                        reinterpret_cast<const int *>(inputs[4]),
+                                                        reinterpret_cast<const int *>(inputs[5]),
+                                                        reinterpret_cast<const int *>(inputs[6]),
+                                                        reinterpret_cast<float *>(outputs[0]));
+        }
+        else{
+            bev_pool_v2_kernel<__half, float><<<grid, block, 0, stream>>>(
+                                                        channel, 
+                                                        n_intervals,
+                                                        map_size,
+                                                        img_size,
+                                                        reinterpret_cast<const __half *>(inputs[0]),
+                                                        reinterpret_cast<const __half *>(inputs[1]),
+                                                        reinterpret_cast<const int *>(inputs[2]),
+                                                        reinterpret_cast<const int *>(inputs[3]),
+                                                        reinterpret_cast<const int *>(inputs[4]),
+                                                        reinterpret_cast<const int *>(inputs[5]),
+                                                        reinterpret_cast<const int *>(inputs[6]),
+                                                        reinterpret_cast<float *>(outputs[0]));
+        }
         break;
     case int(DataType::kHALF):
-        bev_pool_v2_kernel<<<grid, block, 0, stream>>>(
-                                                    channel, 
-                                                    n_intervals,
-                                                    map_size,
-                                                    img_size,
-                                                    reinterpret_cast<const __half *>(inputs[0]),
-                                                    reinterpret_cast<const __half *>(inputs[1]),
-                                                    reinterpret_cast<const int *>(inputs[2]),
-                                                    reinterpret_cast<const int *>(inputs[3]),
-                                                    reinterpret_cast<const int *>(inputs[4]),
-                                                    reinterpret_cast<const int *>(inputs[5]),
-                                                    reinterpret_cast<const int *>(inputs[6]),
-                                                    reinterpret_cast<__half *>(outputs[0]));
+        if(inputDesc[0].type == DataType::kFLOAT){
+            bev_pool_v2_kernel<float, __half><<<grid, block, 0, stream>>>(
+                                                        channel, 
+                                                        n_intervals,
+                                                        map_size,
+                                                        img_size,
+                                                        reinterpret_cast<const float *>(inputs[0]),
+                                                        reinterpret_cast<const float *>(inputs[1]),
+                                                        reinterpret_cast<const int *>(inputs[2]),
+                                                        reinterpret_cast<const int *>(inputs[3]),
+                                                        reinterpret_cast<const int *>(inputs[4]),
+                                                        reinterpret_cast<const int *>(inputs[5]),
+                                                        reinterpret_cast<const int *>(inputs[6]),
+                                                        reinterpret_cast<__half *>(outputs[0]));
+        }
+        else{
+            bev_pool_v2_kernel<__half, __half><<<grid, block, 0, stream>>>(
+                                                        channel, 
+                                                        n_intervals,
+                                                        map_size,
+                                                        img_size,
+                                                        reinterpret_cast<const __half *>(inputs[0]),
+                                                        reinterpret_cast<const __half *>(inputs[1]),
+                                                        reinterpret_cast<const int *>(inputs[2]),
+                                                        reinterpret_cast<const int *>(inputs[3]),
+                                                        reinterpret_cast<const int *>(inputs[4]),
+                                                        reinterpret_cast<const int *>(inputs[5]),
+                                                        reinterpret_cast<const int *>(inputs[6]),
+                                                        reinterpret_cast<__half *>(outputs[0]));
+        }
         break;
     default: // should NOT be here
         printf("\tUnsupport datatype!\n");
@@ -232,11 +276,11 @@ const char *BEVPoolPlugin::getPluginNamespace() const noexcept {
 }
 
 const char *BEVPoolPlugin::getPluginType() const noexcept {
-    return PLUGIN_NAME;
+    return BEVPOOL_PLUGIN_NAME;
 }
 
 const char *BEVPoolPlugin::getPluginVersion() const noexcept {
-    return PLUGIN_VERSION;
+    return BEVPOOL_PLUGIN_VERSION;
 }
 
 void BEVPoolPlugin::attachToContext(cudnnContext *contextCudnn, cublasContext *contextCublas, 
@@ -308,11 +352,11 @@ const char *BEVPoolPluginCreator::getPluginNamespace() const noexcept {
 }
 
 const char *BEVPoolPluginCreator::getPluginName() const noexcept {
-    return PLUGIN_NAME;
+    return BEVPOOL_PLUGIN_NAME;
 }
 
 const char *BEVPoolPluginCreator::getPluginVersion() const noexcept {
-    return PLUGIN_VERSION;
+    return BEVPOOL_PLUGIN_VERSION;
 }
 
 const PluginFieldCollection *BEVPoolPluginCreator::getFieldNames() noexcept {

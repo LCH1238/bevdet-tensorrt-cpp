@@ -97,7 +97,7 @@ void TestNuscenes(YAML::Node &config){
     std::vector<Box> ego_boxes;
     double sum_time = 0;
     int  cnt = 0;
-    for(int i = 0; i < 2; i++){
+    for(int i = 0; i < 200; i++){
         ego_boxes.clear();
         float time = 0.f;
         bevdet.DoInfer(nuscenes.data(i), ego_boxes, time, i);
@@ -105,7 +105,7 @@ void TestNuscenes(YAML::Node &config){
             sum_time += time;
             cnt++;
         }
-        // Boxes2Txt(ego_boxes, output_dir + "/bevdet_egoboxes_" + std::to_string(i) + ".txt", true);
+        Boxes2Txt(ego_boxes, output_dir + "/bevdet_egoboxes_" + std::to_string(i) + ".txt", true);
     }
     printf("Infer mean cost time : %.5lf ms\n", sum_time / cnt);
 }

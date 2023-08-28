@@ -131,12 +131,15 @@ DimsExprs AlignBEVPlugin::getOutputDimensions(int32_t outputIndex, const DimsExp
 
 bool AlignBEVPlugin::supportsFormatCombination(int32_t pos, const PluginTensorDesc *inOut,
                                                     int32_t nbInputs, int32_t nbOutputs) noexcept {
-    // adj_feat    out
-    if(pos == 0 || pos == 2){
+    // adj_feat  
+    if(pos == 0){
         return (inOut[pos].type == DataType::kFLOAT || inOut[pos].type == DataType::kHALF) &&
                 inOut[pos].format == TensorFormat::kLINEAR;
-    }    // transform
-    else if(pos == 1){
+    }    
+    else if(pos == 2){ // out
+        return inOut[0].type == inOut[2].type && inOut[pos].format == TensorFormat::kLINEAR;
+    }
+    else if(pos == 1){ // transform
         return inOut[pos].type == DataType::kFLOAT && inOut[pos].format == TensorFormat::kLINEAR;
     }
     return false;
@@ -172,6 +175,10 @@ int32_t AlignBEVPlugin::enqueue(const PluginTensorDesc *inputDesc, const PluginT
         count *= output_desc.shape[i];
     }
 
+    // printf("Align input adj_feat %s\n", dataTypeToString(inputDesc[0].type).c_str());
+    // printf("Align output         %s\n", dataTypeToString(outputDesc[0].type).c_str());
+
+
     switch (int(outputDesc[0].type))
     {
     case int(DataType::kFLOAT):
@@ -181,7 +188,6 @@ int32_t AlignBEVPlugin::enqueue(const PluginTensorDesc *inputDesc, const PluginT
                                                     reinterpret_cast<const float*>(inputs[1]), 
                                                     reinterpret_cast<float *>(outputs[0]), 
                                                     output_desc);
-
         break;
     case int(DataType::kHALF):
         grid_sampler_2d_kernel<<<GET_BLOCKS(count), NUM_THREADS, 0, stream>>>(
@@ -236,11 +242,11 @@ const char *AlignBEVPlugin::getPluginNamespace() const noexcept {
 }
 
 const char *AlignBEVPlugin::getPluginType() const noexcept {
-    return PLUGIN_NAME;
+    return ALIGN_PLUGIN_NAME;
 }
 
 const char *AlignBEVPlugin::getPluginVersion() const noexcept {
-    return PLUGIN_VERSION;
+    return ALIGN_PLUGIN_VERSION;
 }
 
 void AlignBEVPlugin::attachToContext(cudnnContext *contextCudnn, cublasContext *contextCublas, 
@@ -291,11 +297,11 @@ const char *AlignBEVPluginCreator::getPluginNamespace() const noexcept {
 }
 
 const char *AlignBEVPluginCreator::getPluginName() const noexcept {
-    return PLUGIN_NAME;
+    return ALIGN_PLUGIN_NAME;
 }
 
 const char *AlignBEVPluginCreator::getPluginVersion() const noexcept {
-    return PLUGIN_VERSION;
+    return ALIGN_PLUGIN_VERSION;
 }
 
 const PluginFieldCollection *AlignBEVPluginCreator::getFieldNames() noexcept {

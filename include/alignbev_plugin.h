@@ -23,8 +23,8 @@
 
 namespace
 {
-static const char *PLUGIN_NAME {"AlignBEV"};
-static const char *PLUGIN_VERSION {"1"};
+static const char *ALIGN_PLUGIN_NAME {"AlignBEV"};
+static const char *ALIGN_PLUGIN_VERSION {"1"};
 } // namespace
 
 namespace nvinfer1

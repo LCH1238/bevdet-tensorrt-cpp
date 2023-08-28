@@ -103,10 +103,16 @@ DimsExprs GatherBEVPlugin::getOutputDimensions(int32_t outputIndex, const DimsEx
 
 bool GatherBEVPlugin::supportsFormatCombination(int32_t pos, const PluginTensorDesc *inOut,
                                                     int32_t nbInputs, int32_t nbOutputs) noexcept {
-    // adj_feat    curr_feat   out
-    if(pos == 0 || pos == 1 || pos == 3){
+    // adj_feat
+    if(pos == 0){
         return (inOut[pos].type == DataType::kFLOAT || inOut[pos].type == DataType::kHALF) &&
                 inOut[pos].format == TensorFormat::kLINEAR;
+    }
+    else if(pos == 1){ // curr_feat
+        return inOut[0].type == inOut[1].type && inOut[pos].format == TensorFormat::kLINEAR;
+    }
+    else if(pos == 3){ // out
+        return inOut[0].type == inOut[3].type && inOut[pos].format == TensorFormat::kLINEAR;
     }
     else if(pos == 2){
         return inOut[pos].type == DataType::kINT32 && inOut[pos].format == TensorFormat::kLINEAR;
@@ -146,18 +152,19 @@ int32_t GatherBEVPlugin::enqueue(const PluginTensorDesc *inputDesc, const Plugin
     int channel = inputDesc[0].dims.d[2];
 
     int feat_step = inputDesc[1].dims.d[1] * inputDesc[1].dims.d[2] * inputDesc[1].dims.d[3];
-    // printf("feat_step : %d\n", feat_step);
-    // printf("adj_num : %d\n", adj_num);
-    // printf("flag : %d\n", flag);
+
     int nthreads = b * (adj_num + 1) * map_size;
 
     dim3 grid(GET_BLOCKS(nthreads));
     dim3 block(NUM_THREADS);
+    // printf("GatherBEV input adj_feats %s\n", dataTypeToString(inputDesc[0].type).c_str());
+    // printf("GatherBEV input curr_feat %s\n", dataTypeToString(inputDesc[1].type).c_str());
+    // printf("GatherBEV output bevfeats %s\n", dataTypeToString(outputDesc[0].type).c_str());
+
 
     switch (int(outputDesc[0].type))
     {
     case int(DataType::kFLOAT):
-        // printf("copy feat!\n");
         copy_feat_kernel<<<grid, block, 0, stream>>>(nthreads,
                                                     adj_num,
                                                     channel,
@@ -166,36 +173,10 @@ int32_t GatherBEVPlugin::enqueue(const PluginTensorDesc *inputDesc, const Plugin
                                                     reinterpret_cast<const float*>(inputs[1]),
                                                     reinterpret_cast<const int*>(inputs[2]),
                                                     reinterpret_cast<float*>(outputs[0]));
-        // printf("copy feat! done!\n");
         
 
-
-        // if(!flag){
-        //     for(int i = 0; i < adj_num + 1; i++){
-        //         CHECK_CUDA(cudaMemcpy((float*)outputs[0] + i * feat_step, inputs[1], 
-        //                                 feat_step * sizeof(float), cudaMemcpyDeviceToDevice));
-        //     }
-        //     // printf("flag %d\n", flag);
-        // }
-        // else{
-        //     CHECK_CUDA(cudaMemcpy(outputs[0], inputs[1], feat_step * sizeof(float), cudaMemcpyDeviceToDevice));
-        //     CHECK_CUDA(cudaMemcpy((float*)outputs[0] + feat_step, inputs[0], adj_num * feat_step * sizeof(float),
-        //                             cudaMemcpyDeviceToDevice));
-        //     // printf("flag %d\n", flag);
-        // }
         break;
     case int(DataType::kHALF):
-        // if(!flag){
-        //     for(int i = 0; i < adj_num + 1; i++){
-        //         CHECK_CUDA(cudaMemcpy((__half*)outputs[0] + i * feat_step, inputs[1], 
-        //                                 feat_step * sizeof(__half), cudaMemcpyDeviceToDevice));
-        //     }
-        // }
-        // else{
-        //     CHECK_CUDA(cudaMemcpy(outputs[0], inputs[1], feat_step * sizeof(__half), cudaMemcpyDeviceToDevice));
-        //     CHECK_CUDA(cudaMemcpy((__half*)outputs[0] + feat_step, inputs[0], adj_num * feat_step * sizeof(__half),
-        //                             cudaMemcpyDeviceToDevice));
-        // }
         copy_feat_kernel<<<grid, block, 0, stream>>>(nthreads,
                                                     adj_num,
                                                     channel,
@@ -243,11 +224,11 @@ const char *GatherBEVPlugin::getPluginNamespace() const noexcept {
 }
 
 const char *GatherBEVPlugin::getPluginType() const noexcept {
-    return PLUGIN_NAME;
+    return GATHERBEV_PLUGIN_NAME;
 }
 
 const char *GatherBEVPlugin::getPluginVersion() const noexcept {
-    return PLUGIN_VERSION;
+    return GATHERBEV_PLUGIN_VERSION;
 }
 
 void GatherBEVPlugin::attachToContext(cudnnContext *contextCudnn, cublasContext *contextCublas, 
@@ -297,11 +278,11 @@ const char *GatherBEVPluginCreator::getPluginNamespace() const noexcept {
 }
 
 const char *GatherBEVPluginCreator::getPluginName() const noexcept {
-    return PLUGIN_NAME;
+    return GATHERBEV_PLUGIN_NAME;
 }
 
 const char *GatherBEVPluginCreator::getPluginVersion() const noexcept {
-    return PLUGIN_VERSION;
+    return GATHERBEV_PLUGIN_VERSION;
 }
 
 const PluginFieldCollection *GatherBEVPluginCreator::getFieldNames() noexcept {
