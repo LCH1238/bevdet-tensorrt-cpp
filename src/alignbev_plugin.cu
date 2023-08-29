@@ -26,7 +26,7 @@ static inline __device__ bool within_bounds_2d(int h, int w, int H, int W){
 }
 
 template <typename T>
-__global__ void grid_sampler_2d_kernel(const int nthreads, const T *input,
+__global__ void align_bev_kernel(const int nthreads, const T *input,
                                        const float *trans, T *output,
                                        TensorDesc output_desc){
     int C = output_desc.shape[1];         // 80
@@ -182,7 +182,7 @@ int32_t AlignBEVPlugin::enqueue(const PluginTensorDesc *inputDesc, const PluginT
     switch (int(outputDesc[0].type))
     {
     case int(DataType::kFLOAT):
-        grid_sampler_2d_kernel<<<GET_BLOCKS(count), NUM_THREADS, 0, stream>>>(
+        align_bev_kernel<<<GET_BLOCKS(count), NUM_THREADS, 0, stream>>>(
                                                     count, 
                                                     reinterpret_cast<const float *>(inputs[0]), 
                                                     reinterpret_cast<const float*>(inputs[1]), 
@@ -190,7 +190,7 @@ int32_t AlignBEVPlugin::enqueue(const PluginTensorDesc *inputDesc, const PluginT
                                                     output_desc);
         break;
     case int(DataType::kHALF):
-        grid_sampler_2d_kernel<<<GET_BLOCKS(count), NUM_THREADS, 0, stream>>>(
+        align_bev_kernel<<<GET_BLOCKS(count), NUM_THREADS, 0, stream>>>(
                                                     count, 
                                                     reinterpret_cast<const __half *>(inputs[0]), 
                                                     reinterpret_cast<const float*>(inputs[1]), 
