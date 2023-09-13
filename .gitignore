@@ -25,5 +25,5 @@ __pycache__
 test_plugin/
 test_plugin_out/
 plugin_out/
-
+onnx/
 tools/export_one_engine.py
