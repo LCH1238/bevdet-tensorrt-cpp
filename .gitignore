@@ -21,6 +21,7 @@ __pycache__
 /quan
 /trt_quan
 *.onnx
+out_quant/
 
 test_plugin/
 test_plugin_out/

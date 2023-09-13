@@ -25,9 +25,9 @@ static inline __device__ bool within_bounds_2d(int h, int w, int H, int W){
     return h >= 0 && h < H && w >= 0 && w < W;
 }
 
-template <typename T>
-__global__ void align_bev_kernel(const int nthreads, const T *input,
-                                       const float *trans, T *output,
+template <typename T1, typename T2>
+__global__ void align_bev_kernel(const int nthreads, const T1 *input,
+                                       const float *trans, T2 *output,
                                        TensorDesc output_desc){
     int C = output_desc.shape[1];         // 80
     int out_H = output_desc.shape[2];     // 128
@@ -59,27 +59,27 @@ __global__ void align_bev_kernel(const int nthreads, const T *input,
         int ix_se = ix_nw + 1;
         int iy_se = iy_nw + 1;
 
-        T nw = (ix_se - ix) * (iy_se - iy);
-        T ne = (ix - ix_sw) * (iy_sw - iy);
-        T sw = (ix_ne - ix) * (iy - iy_ne);
-        T se = (ix - ix_nw) * (iy - iy_nw);
+        T2 nw = (ix_se - ix) * (iy_se - iy);
+        T2 ne = (ix - ix_sw) * (iy_sw - iy);
+        T2 sw = (ix_ne - ix) * (iy - iy_ne);
+        T2 se = (ix - ix_nw) * (iy - iy_nw);
 
         // bilinear
         auto inp_ptr_NC = input + n * out_sN;
         auto out_ptr_NCHW = output + n * out_sN + h * out_sH + w * out_sW;
         for (int c = 0; c < C; ++c, inp_ptr_NC += out_sC, out_ptr_NCHW += out_sC){
-            *out_ptr_NCHW = static_cast<T>(0);
+            *out_ptr_NCHW = static_cast<T2>(0);
             if (within_bounds_2d(iy_nw, ix_nw, out_H, out_W)){
-                *out_ptr_NCHW += inp_ptr_NC[iy_nw * out_sH + ix_nw * out_sW] * nw;
+                *out_ptr_NCHW += static_cast<T2>(inp_ptr_NC[iy_nw * out_sH + ix_nw * out_sW]) * nw;
             }
             if (within_bounds_2d(iy_ne, ix_ne, out_H, out_W)){
-                *out_ptr_NCHW += inp_ptr_NC[iy_ne * out_sH + ix_ne * out_sW] * ne;
+                *out_ptr_NCHW += static_cast<T2>(inp_ptr_NC[iy_ne * out_sH + ix_ne * out_sW]) * ne;
             }
             if (within_bounds_2d(iy_sw, ix_sw, out_H, out_W)){
-                *out_ptr_NCHW += inp_ptr_NC[iy_sw * out_sH + ix_sw * out_sW] * sw;
+                *out_ptr_NCHW += static_cast<T2>(inp_ptr_NC[iy_sw * out_sH + ix_sw * out_sW]) * sw;
             }
             if (within_bounds_2d(iy_se, ix_se, out_H, out_W)){
-                *out_ptr_NCHW += inp_ptr_NC[iy_se * out_sH + ix_se * out_sW] * se;
+                *out_ptr_NCHW += static_cast<T2>(inp_ptr_NC[iy_se * out_sH + ix_se * out_sW]) * se;
             }
         }
     }
@@ -120,7 +120,7 @@ int32_t AlignBEVPlugin::getNbOutputs() const noexcept {
  
 DataType AlignBEVPlugin::getOutputDataType(int32_t index, DataType const *inputTypes, 
                                                                 int32_t nbInputs) const noexcept {
-    return inputTypes[0]; 
+    return DataType::kFLOAT; // FIXME 
 }
 
 DimsExprs AlignBEVPlugin::getOutputDimensions(int32_t outputIndex, const DimsExprs *inputs, 
@@ -137,7 +137,8 @@ bool AlignBEVPlugin::supportsFormatCombination(int32_t pos, const PluginTensorDe
                 inOut[pos].format == TensorFormat::kLINEAR;
     }    
     else if(pos == 2){ // out
-        return inOut[0].type == inOut[2].type && inOut[pos].format == TensorFormat::kLINEAR;
+        return (inOut[pos].type == DataType::kFLOAT || inOut[pos].type == DataType::kHALF) &&
+                inOut[pos].format == TensorFormat::kLINEAR;
     }
     else if(pos == 1){ // transform
         return inOut[pos].type == DataType::kFLOAT && inOut[pos].format == TensorFormat::kLINEAR;
@@ -175,27 +176,47 @@ int32_t AlignBEVPlugin::enqueue(const PluginTensorDesc *inputDesc, const PluginT
         count *= output_desc.shape[i];
     }
 
-    // printf("Align input adj_feat %s\n", dataTypeToString(inputDesc[0].type).c_str());
-    // printf("Align output         %s\n", dataTypeToString(outputDesc[0].type).c_str());
-
-
     switch (int(outputDesc[0].type))
     {
     case int(DataType::kFLOAT):
-        align_bev_kernel<<<GET_BLOCKS(count), NUM_THREADS, 0, stream>>>(
+        if(inputDesc[0].type == DataType::kFLOAT){
+            // printf("align : fp32, fp32\n");
+            align_bev_kernel<float, float><<<GET_BLOCKS(count), NUM_THREADS, 0, stream>>>(
                                                     count, 
                                                     reinterpret_cast<const float *>(inputs[0]), 
                                                     reinterpret_cast<const float*>(inputs[1]), 
                                                     reinterpret_cast<float *>(outputs[0]), 
                                                     output_desc);
+        }
+        else{
+            // printf("align : fp16, fp32\n");
+            align_bev_kernel<__half, float><<<GET_BLOCKS(count), NUM_THREADS, 0, stream>>>(
+                                                    count, 
+                                                    reinterpret_cast<const __half *>(inputs[0]), 
+                                                    reinterpret_cast<const float*>(inputs[1]), 
+                                                    reinterpret_cast<float *>(outputs[0]), 
+                                                    output_desc);
+        }
         break;
     case int(DataType::kHALF):
-        align_bev_kernel<<<GET_BLOCKS(count), NUM_THREADS, 0, stream>>>(
+        if(inputDesc[0].type == DataType::kFLOAT){
+            // printf("align : fp32, fp16\n");
+            align_bev_kernel<float, __half><<<GET_BLOCKS(count), NUM_THREADS, 0, stream>>>(
+                                                    count, 
+                                                    reinterpret_cast<const float *>(inputs[0]), 
+                                                    reinterpret_cast<const float*>(inputs[1]), 
+                                                    reinterpret_cast<__half *>(outputs[0]), 
+                                                    output_desc);
+        }
+        else{
+            // printf("align : fp16, fp16\n");
+            align_bev_kernel<__half, __half><<<GET_BLOCKS(count), NUM_THREADS, 0, stream>>>(
                                                     count, 
                                                     reinterpret_cast<const __half *>(inputs[0]), 
                                                     reinterpret_cast<const float*>(inputs[1]), 
                                                     reinterpret_cast<__half *>(outputs[0]), 
                                                     output_desc);
+        }
         break;
     default: // should NOT be here
         printf("\tUnsupport datatype!\n");

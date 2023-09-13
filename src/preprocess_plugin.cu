@@ -64,24 +64,6 @@ __global__ void preprocess_kernel(const uint8_t * src_dev,
 		dst_dev[d1] = (static_cast<T>(src_dev[s1]) - static_cast<T>(mean[0])) / static_cast<T>(std[0]);
 		dst_dev[d2] = (static_cast<T>(src_dev[s2]) - static_cast<T>(mean[1])) / static_cast<T>(std[1]);
 		dst_dev[d3] = (static_cast<T>(src_dev[s3]) - static_cast<T>(mean[2])) / static_cast<T>(std[2]);
-        
-        // printf("%.3f %.3f \n", mean[0], static_cast<T>(src_dev[s1]));
-
-        // std::cout << mean[0] << ' ' << static_cast<T>(mean[0]) << std::endl;
-
-
-        // T src1 = static_cast<T>(src_dev[s1]);
-        // T src2 = static_cast<T>(src_dev[s2]);
-        // T src3 = static_cast<T>(src_dev[s3]);
-
-        // T t1 = src1 - reinterpret_cast<T>(mean[0]);
-        // T t2 = src1 - reinterpret_cast<T>(mean[1]);
-        // T t3 = src3 - reinterpret_cast<T>(mean[2]);
-
-
-        // dst_dev[d1] = t1 / std[0];
-        // dst_dev[d2] = t2 / std[1];
-        // dst_dev[d3] = t3 / std[2];
 	}
 }
 
@@ -116,7 +98,8 @@ int32_t PreprocessPlugin::getNbOutputs() const noexcept {
  
 DataType PreprocessPlugin::getOutputDataType(int32_t index, DataType const *inputTypes, 
                                                                 int32_t nbInputs) const noexcept {
-    return DataType::kHALF;
+    // return DataType::kHALF;
+    return DataType::kFLOAT;
 }
 
 DimsExprs PreprocessPlugin::getOutputDimensions(int32_t outputIndex, const DimsExprs *inputs, 
@@ -155,10 +138,10 @@ bool PreprocessPlugin::supportsFormatCombination(int32_t pos, const PluginTensor
                 inOut[2].format == TensorFormat::kLINEAR;
         break;
     case 3: // 输出 img tensor
-        // res = (inOut[3].type == DataType::kFLOAT || inOut[3].type == DataType::kHALF) && 
-        //         inOut[3].format == inOut[0].format;
+        res = (inOut[3].type == DataType::kFLOAT || inOut[3].type == DataType::kHALF) && 
+                inOut[3].format == inOut[0].format;
 
-        res = inOut[3].type == DataType::kHALF && inOut[3].format == inOut[0].format;
+        // res = inOut[3].type == DataType::kHALF && inOut[3].format == inOut[0].format;
         break;
     default: 
         res = false;
@@ -201,6 +184,7 @@ int32_t PreprocessPlugin::enqueue(const PluginTensorDesc *inputDesc, const Plugi
     switch (int(outputDesc[0].type))
     {
     case int(DataType::kFLOAT):
+        // printf("pre : float\n");
         preprocess_kernel<<<grid, block, 0, stream>>>(
                                                 reinterpret_cast<const uint8_t *>(inputs[0]),
                                                 reinterpret_cast<float *>(outputs[0]),
@@ -221,6 +205,7 @@ int32_t PreprocessPlugin::enqueue(const PluginTensorDesc *inputDesc, const Plugi
                                                 n_img);
         break;
     case int(DataType::kHALF):
+        // printf("pre : half\n");
         preprocess_kernel<<<grid, block, 0, stream>>>(
                                                 reinterpret_cast<const uint8_t *>(inputs[0]),
                                                 reinterpret_cast<__half *>(outputs[0]),
